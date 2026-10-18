@@ -647,7 +647,7 @@ function overview(){
   const attention = open.filter(x=>x.st.status==='overdue'||x.st.status==='soon').sort((a,b)=>({overdue:0,soon:1}[a.st.status]-{overdue:0,soon:1}[b.st.status])||b.st.late-a.st.late);
   const low = list(S.products).filter(p => p.stock <= (p.reorderAt ?? 2)).sort((a,b)=>a.stock-b.stock);
   const stockValue = list(S.products).reduce((a,p)=>a+p.cost*p.stock,0);
-  const recent = list(S.sales).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const recent = list(S.sales).filter(s => retUnits(s).length < unitCount(s)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   const parts = Object.entries(f.by).filter(([,v])=>v>0); const pos = parts.reduce((a,[,v])=>a+v,0);
   const openClaims = list(S.claims).filter(c=>c.status!=='done').length;
   const closed = S.closes[t];
@@ -1062,7 +1062,22 @@ function showReceipt(id){
   const c = S.customers[s.customerId]; const allBack = retUnits(s).length >= unitCount(s);
   modal(mhead('Receipt ' + esc(s.receipt)) + `<div class="printed" id="rcpt">${esc(receiptText(s))}</div>
     <div class="bar"><span class="sub">Print it, or send it by WhatsApp or SMS.</span><span style="display:flex;gap:8px;flex-wrap:wrap">${c?waBtn(c.phone, receiptText(s)):''}<button data-copy="rcpt">Copy</button><button class="primary" data-print="${s.id}">Print</button></span></div>
-    ${can('returns') && !allBack ? `<div class="bar" style="border-top:1px solid var(--line);padding-top:14px"><span class="sub">Customer bringing something back?</span><button data-return="${s.id}">Return items</button></div>` : ''}`);
+    ${can('returns') && !allBack ? `<div class="bar" style="border-top:1px solid var(--line);padding-top:14px"><span class="sub">Customer bringing something back?</span><button data-return="${s.id}">Return items</button></div>` : ''}
+    ${can('deleteItems') && allBack ? `<div class="bar" style="border-top:1px solid var(--line);padding-top:14px"><span class="sub">Everything on this sale was returned. If it was a test or a mistake, you can remove it.</span><button data-delsale="${s.id}">Delete this sale</button></div>` : ''}`);
+}
+function deleteSaleForm(id){
+  const s = S.sales[id]; if (!s) return;
+  modal(`<h2>Delete sale ${esc(s.receipt)}?</h2><p style="margin:0">${esc(s.items.map(i=>i.name).join(', '))} · ${money(s.total)} · ${fmtDT(s.date)}</p>
+    <p class="muted" style="margin:0">The sale disappears from the sales log, reports and day totals. Stock is not changed, because the items were already returned. The stock history keeps a note of the deletion. This cannot be undone.</p>
+    <span class="err" id="dsErr" role="alert"></span>
+    <div class="bar"><button data-close>Keep it</button><button class="primary" style="background:var(--bad);border-color:var(--bad)" id="doDelSale">Delete sale</button></div>`);
+  $('#doDelSale').onclick = async () => { $('#doDelSale').disabled = true;
+    const ok = await write(async () => {
+      await db.collection('sales').doc(id).delete();
+      if (s.planId && S.plans[s.planId]) await db.collection('plans').doc(s.planId).delete();
+      for (const i of s.items) await logStock({ type:'adjusted', productId:i.productId, productName:i.name, qty:0, serials:[], receipt:s.receipt, note:'Returned sale deleted' });
+    }, 'Sale deleted');
+    if (ok) closeModal(); else $('#doDelSale').disabled = false; };
 }
 function returnForm(id){
   const s = S.sales[id]; if (!s) return;
@@ -1370,6 +1385,7 @@ document.addEventListener('click', async e => {
   if (d.cust) return customerDetail(d.cust);
   if (d.receipt) return showReceipt(d.receipt);
   if (d.return) return returnForm(d.return);
+  if (d.delsale) return deleteSaleForm(d.delsale);
   if (d.claim){ const [sid, ix, sn] = d.claim.split('|'); return claimForm(sid, +ix, sn); }
   if (d.resolve) return resolveForm(d.resolve);
   if ('closeDay' in d) return closeDayForm();
