@@ -405,7 +405,16 @@ const IC = {
   Irons: sv('<path d="M3 17h16c1.2 0 2-.8 2-2-.3-4.2-3.7-7-8-7H9"/><path d="M3 17c0-4 2.8-6 6-6h3"/><path d="M8 5h6"/>'),
   other: sv('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12h6"/>'),
 };
-const glyph = c => IC[c] || IC.other;
+const CATEGORY_GROUPS = [
+  ['Kitchen', ['Refrigerators','Freezers','Cookers','Microwaves','Blenders','Food processors','Kettles','Toasters','Rice cookers','Water dispensers','Dishwashers']],
+  ['Laundry and cleaning', ['Washing machines','Dryers','Irons','Vacuum cleaners']],
+  ['Cooling', ['Air conditioners','Fans','Air coolers']],
+  ['TV and audio', ['Televisions','Sound systems','Decoders']],
+  ['Power and water', ['Water heaters','Generators','Voltage stabilisers','Inverters and UPS']],
+];
+const CATEGORIES = CATEGORY_GROUPS.flatMap(g => g[1]);
+const GLYPH_ALIAS = { 'Food processors':'Blenders', Kettles:'Blenders', 'Rice cookers':'Cookers', Toasters:'Microwaves', 'Water dispensers':'Refrigerators', Dishwashers:'Washing machines', Dryers:'Washing machines', 'Vacuum cleaners':'Irons', 'Air coolers':'Fans', 'Sound systems':'Televisions', Decoders:'Televisions' };
+const glyph = c => IC[c] || IC[GLYPH_ALIAS[c]] || IC.other;
 const TABS = [['overview','Today',1],['sell','New sale',1],['stock','Stock',1],['plans','Installments',1],['warranty','Warranty',1],['customers','Customers',1],['sales','Sales log',1],['reports','Reports',5],['settings','Settings',1]];
 const MOBILE = ['overview','sell','stock','plans'];
 const SHORT = { overview:'Today', sell:'Sell', stock:'Stock', plans:'Plans', more:'More' };
@@ -1139,13 +1148,14 @@ function closeDayForm(){
     if (await write(()=>db.collection('closes').doc(t).set(doc), 'Day closed')) closeModal(); });
 }
 function productForm(id){
-  const p = id ? S.products[id] : { name:'', brand:'', category:'Refrigerators', cost:'', price:'', stock:0, reorderAt:2, warrantyMonths:12, energy:'' };
-  const cats = [...new Set(['Refrigerators','Freezers','Washing machines','Televisions','Air conditioners','Cookers','Microwaves','Blenders','Fans','Irons', ...list(S.products).map(x=>x.category)])];
+  const p = id ? S.products[id] : { name:'', brand:'', category:'', cost:'', price:'', stock:0, reorderAt:2, warrantyMonths:12, energy:'' };
+  const extraCats = [...new Set(list(S.products).map(x=>x.category).filter(c => c && !CATEGORIES.includes(c)))].sort();
   modal(mhead(id?'Edit item':'Add item','Cancel') + `
   <form id="prodForm" class="stack" style="gap:18px"><div class="fields">
     <label for="pf_brand">Brand<input id="pf_brand" required value="${esc(p.brand)}"></label>
     <label for="pf_name">Model<input id="pf_name" required value="${esc(p.name)}"></label>
-    <label for="pf_cat">Category<input id="pf_cat" list="catlist" required value="${esc(p.category)}"><datalist id="catlist">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>
+    <label for="pf_cat">Category<select id="pf_cat" required><option value="" ${p.category?'':'selected'} disabled>Choose a category</option>${CATEGORY_GROUPS.map(([g,cs])=>`<optgroup label="${esc(g)}">${cs.map(c=>`<option ${p.category===c?'selected':''}>${esc(c)}</option>`).join('')}</optgroup>`).join('')}${extraCats.length?`<optgroup label="Your categories">${extraCats.map(c=>`<option ${p.category===c?'selected':''}>${esc(c)}</option>`).join('')}</optgroup>`:''}<option value="__other">Other…</option></select></label>
+    <label for="pf_catnew" id="pf_catnew_l" hidden>New category name<input id="pf_catnew" maxlength="40" placeholder="For example Sewing machines"></label>
     <label for="pf_war">Warranty (months)<input id="pf_war" type="number" min="0" value="${esc(p.warrantyMonths||0)}"></label>
     <label for="pf_cost">Cost price<input id="pf_cost" type="number" min="0" step="0.01" required value="${esc(p.cost)}"></label>
     <label for="pf_price">Selling price<input id="pf_price" type="number" min="0" step="0.01" required value="${esc(p.price)}"></label>
@@ -1160,10 +1170,13 @@ function productForm(id){
   $('#prodForm').addEventListener('submit', async e => {
     e.preventDefault();
     const g = k => $('#pf_'+k).value.trim();
+    let category = $('#pf_cat').value;
+    if (category === '__other') { category = $('#pf_catnew').value.trim(); if (!category) { $('#pfErr').textContent = 'Type the name of the new category.'; $('#pf_catnew').focus(); return; } }
+    if (!category) { $('#pfErr').textContent = 'Choose a category.'; return; }
     const serials = parseSerials($('#pf_serials').value);
     const clash = serials.find(sn => serialOwner(sn, id));
     if (clash) { const o = serialOwner(clash, id); $('#pfErr').textContent = 'Serial '+clash+' is already on '+o.brand+' '+o.name+'.'; return; }
-    const data = { brand:g('brand'), name:g('name'), category:g('cat'), cost:Number(g('cost')), price:Number(g('price')), stock: serials.length || (parseInt(g('stock'))||0), serials, reorderAt:parseInt(g('reorder'))||0, warrantyMonths:parseInt(g('war'))||0, energy:$('#pf_energy').value };
+    const data = { brand:g('brand'), name:g('name'), category, cost:Number(g('cost')), price:Number(g('price')), stock: serials.length || (parseInt(g('stock'))||0), serials, reorderAt:parseInt(g('reorder'))||0, warrantyMonths:parseInt(g('war'))||0, energy:$('#pf_energy').value };
     const name = data.brand + ' ' + data.name;
     const ok = await write(async ()=>{
       if (id) {
@@ -1399,6 +1412,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   if (e.target.id==='cartCust'){ const v = e.target.value; if (v === '__online') { cart.customerId = ''; cart.channel = 'online'; } else { cart.customerId = v; if (!v) cart.channel = 'shop'; } render(); }
+  if (e.target.id==='pf_cat'){ const other = e.target.value === '__other'; $('#pf_catnew_l').hidden = !other; if (other) $('#pf_catnew').focus(); }
   if (e.target.id==='cartOnline'){ cart.channel = e.target.checked ? 'online' : 'shop'; render(); }
   if (e.target.id==='cartFreq'){ cart.freq = e.target.value; render(); }
   if (e.target.id==='cartDepM'){ cart.depositMethod = e.target.value; }
