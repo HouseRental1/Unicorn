@@ -17,6 +17,9 @@ The database tables (`shop_docs`, `shop_locks`, `shop_users`) are created automa
 | `DATABASE_URL` | Added automatically when you connect a Neon database under **Storage**. |
 | `SESSION_SECRET` | A long random string that signs device sessions. |
 | `SETUP_CODE` | A one-time code needed to create the owner login the first time. |
+| `CRON_SECRET` | Lets only Vercel's evening job run the daily summary. |
+| `RESEND_API_KEY` | Optional. Switches on the 8 pm summary email (free account at resend.com). |
+| `SUMMARY_FROM` | Optional. Sender address once you verify your own domain with Resend. |
 
 ## First run
 
@@ -35,6 +38,18 @@ Everyone signs in with their own username and password, and every sale, payment 
 | Owner | Everything, including staff logins, shop settings and deleting items |
 
 The server enforces the owner-only actions as well as the app. Passwords are stored as scrypt hashes.
+
+## Daily summary
+
+After closing the day, owners and managers see a summary they can send on WhatsApp in one tap: sales, money in, overdue customers, low stock and orders still to deliver. At 8 pm Ghana time a Vercel cron job (`api/daily-summary.js`) also emails it to the address saved in Settings, once `RESEND_API_KEY` is set.
+
+## Backup and sign-in protection
+
+Owners can download everything as one Excel file from Settings. After 5 wrong passwords a login is locked for 15 minutes (20 wrong tries locks the device). Owners see recent sign-ins and can unlock a login in Settings.
+
+## Barcode scanning
+
+The Scan buttons use the phone or laptop camera to read the barcode on the box (Code 128, Code 39, EAN, UPC, ITF, QR and others). The browser's own reader is used where it exists, otherwise the bundled ZXing library in `public/vendor/`.
 
 ## Printing
 

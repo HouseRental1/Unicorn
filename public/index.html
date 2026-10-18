@@ -333,6 +333,16 @@ a.btn.wa:hover{filter:brightness(1.07)}
 .rolepill{text-transform:capitalize}
 textarea{min-height:44px}
 #printArea{display:none}
+.scanbtn{display:inline-flex;align-items:center;gap:6px}
+.scanbtn svg{width:18px;height:18px}
+.scanner{position:fixed;inset:0;z-index:70;background:#000;display:flex;flex-direction:column}
+.scanner video{flex:1;min-height:0;width:100%;object-fit:cover;background:#000}
+.scanner .frame{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);width:min(82vw,520px);height:min(34vw,200px);border:3px solid #fff;border-radius:14px;box-shadow:0 0 0 100vmax rgb(0 0 0 / .45);pointer-events:none}
+.scanner .frame::after{content:"";position:absolute;left:8%;right:8%;top:50%;height:2px;background:var(--tag);box-shadow:0 0 12px var(--tag)}
+.scanner .bottom{background:var(--surface);color:var(--ink);padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:10px}
+.scanner .got{display:flex;flex-wrap:wrap;gap:6px}
+.scanner .got span{font:600 13px var(--mono);background:var(--accent-soft);color:var(--accent);padding:5px 9px;border-radius:8px}
+@media (prefers-reduced-motion:no-preference){.scanner .frame::after{animation:scanline 1.6s ease-in-out infinite alternate}@keyframes scanline{from{top:15%}to{top:85%}}}
 .netbanner{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));z-index:60;background:var(--bad);color:#fff;padding:8px 14px;border-radius:999px;font-weight:600;font-size:13px}
 @media print{
   @page{size:80mm auto;margin:4mm}
@@ -363,6 +373,7 @@ textarea{min-height:44px}
   <nav class="tabbar" id="tabBar" aria-label="Sections"></nav>
 </div>
 <div id="modalRoot"></div>
+<div id="scanRoot"></div>
 
 <script>
 (() => {
@@ -391,6 +402,7 @@ const IC = {
   reports: sv('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
   settings: sv('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/>'),
   more: sv('<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>'),
+  scan: sv('<path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6"/>'),
   search: sv('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'),
   wa: sv('<path d="M4 20l1.3-3.8A8 8 0 1112 20a8 8 0 01-3.9-1z"/><path d="M9 9.5c.2 2 2.4 4.3 4.6 4.8l1-1.1 1.6.8c-.2.9-1 1.6-2 1.6-3 0-6.3-3.2-6.3-6.2 0-1 .7-1.8 1.6-2l.8 1.6z"/>'),
   Refrigerators: sv('<rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M6 9.5h12M9 5.5v2M9 12.5v3"/>'),
@@ -444,7 +456,20 @@ const custName = id => S.customers[id]?.name || 'Walk-in customer';
 const isOnline = s => s.channel === 'online';
 const saleCust = s => s.customerId ? custName(s.customerId) : (isOnline(s) ? 'Online customer' : 'Walk-in customer');
 const saleAvatar = s => s.customerId ? avatar(s.customerId) : avatarN(isOnline(s) ? 'online' : 'walkin', saleCust(s));
-const onlinePill = s => isOnline(s) ? ' <span class="pill acc">Online</span>' : '';
+const DELIV = { pending:['warn','Pending'], out:['acc','Out for delivery'], delivered:['good','Delivered'] };
+const delivOf = s => DELIV[s.deliveryStatus || 'pending'] ? (s.deliveryStatus || 'pending') : 'pending';
+const fullyReturned = s => retUnits(s).length >= unitCount(s);
+const onlinePill = s => isOnline(s) ? ` <span class="pill acc">Online</span>${!fullyReturned(s) ? ` <span class="pill ${DELIV[delivOf(s)][0]}">${DELIV[delivOf(s)][1]}</span>` : ''}` : '';
+const NEXT_DELIV = { pending:['out','Out for delivery'], out:['delivered','Mark delivered'] };
+async function setDelivery(id, status){
+  const ok = await write(async () => { const fresh = (await db.collection('sales').doc(id).get()).data() || S.sales[id];
+    await db.collection('sales').doc(id).update({ deliveryStatus: status, deliveryLog: [...(fresh.deliveryLog||[]), { status, at: nowISO(), by: meObj()?.id || '' }] }); },
+    status === 'delivered' ? 'Marked delivered' : 'Marked out for delivery');
+  if (ok && document.getElementById('rcpt')) showReceipt(id);
+}
+function deliveryRows(list_){ return list_.map(s => { const st = delivOf(s), nx = NEXT_DELIV[st]; const ph = S.customers[s.customerId]?.phone || '';
+  return `<div class="person">${saleAvatar(s)}<div class="who"><b>${esc(saleCust(s))}</b><span class="sub">${esc(s.items.map(i=>i.name).join(', '))} · ordered ${fmtDT(s.date)}${s.delivery?`<br>Deliver to: ${esc(s.delivery)}`:''}</span></div>
+    <div class="acts"><span class="pill ${DELIV[st][0]}">${DELIV[st][1]}</span>${ph?waBtn(ph, `Hello ${saleCust(s).split(' ')[0]}, this is ${S.settings.name}. ${st==='out'?'Your order is on its way to you.':'We have received your order and will deliver it soon.'} Receipt ${s.receipt}.`, 'Message'):''}${nx&&can('sell')?`<button class="small primary" data-deliv="${s.id}|${nx[0]}">${nx[1]}</button>`:''}</div></div>`; }).join(''); }
 const initials = n => (n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
 const avColor = s => 'var(--av'+(1+[...(s||'')].reduce((a,c)=>a+c.charCodeAt(0),0)%4)+')';
 const avatarN = (key, name) => `<span class="av" style="background:${avColor(key||name)}">${esc(initials(name))}</span>`;
@@ -650,6 +675,7 @@ function overview(){
   const recent = list(S.sales).filter(s => retUnits(s).length < unitCount(s)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   const parts = Object.entries(f.by).filter(([,v])=>v>0); const pos = parts.reduce((a,[,v])=>a+v,0);
   const openClaims = list(S.claims).filter(c=>c.status!=='done').length;
+  const toDeliver = list(S.sales).filter(s => isOnline(s) && delivOf(s) !== 'delivered' && !fullyReturned(s)).sort((a,b)=>a.date.localeCompare(b.date));
   const closed = S.closes[t];
   const hr = new Date().getHours();
   return head('Good ' + (hr<12?'morning':hr<17?'afternoon':'evening') + (meObj()?.name ? ', ' + esc(meObj().name.split(' ')[0]) : '') + '.', can('sell')?`<button class="go" data-tab="sell">${IC.sell.replace('<svg','<svg style="width:18px;height:18px;vertical-align:-4px;margin-right:6px"')}New sale</button>`:'') + `
@@ -670,6 +696,7 @@ function overview(){
   </section>
   <div class="cols">
     <div class="stack">
+      ${toDeliver.length ? `<section class="card"><div class="cardhead"><h3>Online orders to deliver</h3><span class="sub">${toDeliver.length} waiting</span></div><div class="people">${deliveryRows(toDeliver)}</div></section>` : ''}
       <section class="card"><div class="cardhead"><h3>Collect from these customers</h3><button class="link" data-tab="plans">All plans</button></div>
         ${attention.length ? `<div class="people">${attention.map(({p,st})=>`
           <div class="person">${avatar(p.customerId)}<div class="who"><b>${esc(custName(p.customerId))}</b><span class="sub">${esc(p.productName)} · ${st.status==='overdue'?'owes '+money(st.arrears):'next '+money(p.instalment)}</span></div>
@@ -682,7 +709,7 @@ function overview(){
     </div>
     <div class="stack">
       <section class="card"><div class="cardhead"><h3>Close the day</h3>${closed&&can('close')?`<button class="link" data-close-day>Recount</button>`:''}</div>
-        ${closed ? closedSummary(closed) : `<p class="sub" style="margin:0 0 14px">Count the cash drawer and check the mobile money wallet, then record the totals. The app shows any shortfall or extra.</p>${can('close')?`<button class="primary" data-close-day style="width:100%">Count and close today</button>`:''}`}
+        ${closed ? closedSummary(closed) + (canSee('reports') ? `<button class="small" data-summary style="margin-top:12px">Daily summary</button>` : '') : `<p class="sub" style="margin:0 0 14px">Count the cash drawer and check the mobile money wallet, then record the totals. The app shows any shortfall or extra.</p>${can('close')?`<button class="primary" data-close-day style="width:100%">Count and close today</button>`:''}${canSee('reports')?`<button class="link" data-summary style="margin-top:12px">See today’s summary so far</button>`:''}`}
       </section>
       <section class="card"><div class="cardhead"><h3>Reorder soon</h3><button class="link" data-tab="stock">Stock</button></div>
         ${low.length ? `<div class="reorder">${low.map(p=>`<div class="r"><span class="itemcell" style="min-width:0;flex:1"><span class="glyph">${glyph(p.category)}</span><span class="who" style="min-width:0"><b style="display:block">${esc(p.brand)} ${esc(p.name)}</b><span class="sub">Reorder at ${p.reorderAt ?? 2}</span></span></span><span class="pill ${p.stock===0?'bad':'warn'}">${p.stock===0?'Sold out':p.stock+' left'}</span></div>`).join('')}</div>` : `<div class="empty">Every item is above its reorder level.</div>`}
@@ -690,6 +717,39 @@ function overview(){
       ${openClaims?`<section class="card"><div class="cardhead"><h3>Open warranty claims</h3><button class="link" data-tab="warranty">Warranty</button></div><p style="margin:0"><b class="num">${openClaims}</b> ${openClaims===1?'claim is':'claims are'} waiting to be resolved.</p></section>`:''}
     </div>
   </div>`;
+}
+function summaryText(day){
+  const t = day || todayISO(), f = flow(t, t), m = metrics(t, t);
+  const L = [`*${S.settings.name}*`, `Daily summary · ${parseD(t).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}`, ''];
+  L.push(`Sales: ${f.n} · ${plain(m.net)}${f.returnedN ? ` (${f.returnedN} returned)` : ''}`);
+  L.push(`Money in: ${plain(f.total)}`);
+  const parts = Object.entries(f.by).filter(([,v]) => v).map(([k,v]) => `${PAYM[k]} ${plain(v)}`); if (parts.length) L.push('  ' + parts.join(' · '));
+  if (f.planIn) L.push(`Plan payments and deposits: ${plain(f.planIn)}`);
+  if (f.refunds) L.push(`Refunds: ${plain(f.refunds)}`);
+  if (m.disc) L.push(`Discounts given: ${plain(m.disc)}`);
+  if (canSee('reports')) L.push(`Gross profit: ${plain(m.profit)}`);
+  const online = list(S.sales).filter(x => x.date.slice(0,10) === t && isOnline(x)).length; if (online) L.push(`Online orders: ${online}`);
+  const best = Object.values(m.byProd).filter(b => b.units > 0).sort((a,b) => b.units - a.units).slice(0,3); if (best.length) L.push(`Top items: ${best.map(b => `${b.name} ×${b.units}`).join(', ')}`);
+  const c = S.closes[t];
+  L.push('', c ? `Day close: cash ${Math.abs(c.diff.cash) < .01 ? 'balanced' : c.diff.cash < 0 ? plain(-c.diff.cash) + ' short' : plain(c.diff.cash) + ' over'}, MoMo ${Math.abs(c.diff.momo) < .01 ? 'balanced' : c.diff.momo < 0 ? plain(-c.diff.momo) + ' short' : plain(c.diff.momo) + ' over'}${c.note ? ` (${c.note})` : ''}` : 'Day close: not done yet');
+  const plansAll = list(S.plans).map(p => ({ p, st: planStats(p) }));
+  const od = plansAll.filter(x => x.st.status === 'overdue').sort((a,b) => b.st.late - a.st.late);
+  L.push('', `Overdue customers: ${od.length}${od.length ? ' · ' + plain(od.reduce((a,x) => a + x.st.arrears, 0)) : ''}`);
+  od.slice(0,10).forEach(x => L.push(`  • ${custName(x.p.customerId)}: ${plain(x.st.arrears)}, ${x.st.late} day${x.st.late===1?'':'s'} late`));
+  const soon = plansAll.filter(x => x.st.status === 'soon'); if (soon.length) { L.push(`Due in the next 3 days: ${soon.length}`); soon.slice(0,10).forEach(x => L.push(`  • ${custName(x.p.customerId)}: ${plain(x.p.instalment)} on ${fmtShort(x.st.nextDue)}`)); }
+  const low = list(S.products).filter(p => p.stock <= (p.reorderAt ?? 2)).sort((a,b) => a.stock - b.stock);
+  L.push('', `Low stock: ${low.length}`); low.slice(0,12).forEach(p => L.push(`  • ${p.brand} ${p.name}: ${p.stock === 0 ? 'sold out' : p.stock + ' left'}`));
+  const del = list(S.sales).filter(x => isOnline(x) && delivOf(x) !== 'delivered' && !fullyReturned(x)).length; if (del) L.push('', `Online orders still to deliver: ${del}`);
+  const claims = list(S.claims).filter(x => x.status !== 'done').length; if (claims) L.push(`Open warranty claims: ${claims}`);
+  return L.join('\n');
+}
+function summaryModal(){
+  const txt = summaryText(); const owner = S.settings.ownerPhone || '';
+  const href = owner ? waLink(owner, txt) : 'https://wa.me/?text=' + encodeURIComponent(txt);
+  modal(mhead('Daily summary') + `<div class="printed" id="sumTxt">${esc(txt)}</div>
+    <div class="bar"><span class="sub">${owner ? 'Sends to ' + esc(owner) + ' on WhatsApp.' : 'Opens WhatsApp so you can pick who to send it to. Add the owner’s number in Settings to send it there directly.'}</span>
+    <span style="display:flex;gap:8px"><button data-copy="sumTxt">Copy</button><a class="btn wa" href="${esc(href)}" target="_blank" rel="noopener">${IC.wa.replace('<svg','<svg style="width:16px;height:16px"')}Send on WhatsApp</a></span></div>`);
+  $('#modalRoot .modal').style.maxWidth = '640px';
 }
 function closedSummary(c){
   const dc = round2(c.diff?.cash||0), dm = round2(c.diff?.momo||0);
@@ -718,7 +778,7 @@ function sell(){
   const dErr = discError();
   const mIcon = { cash:'m-cash', momo:'m-momo', card:'m-card', transfer:'m-transfer', installment:'m-deposit' };
   const maxD = myMaxDisc();
-  return head('New sale', searchBox('sellQ','Search or scan a serial number',ui.q)) + `
+  return head('New sale', searchBox('sellQ','Search or scan a serial number',ui.q) + scanBtn('sellQ','single')) + `
   <div class="cols">
     <div class="stack" style="gap:16px">${catChips()}
       <div class="shelf">${prods.map(p=>{ const lowS = p.stock>0 && p.stock <= (p.reorderAt??2);
@@ -857,7 +917,7 @@ function warranty(){
   }
   const claims = list(S.claims).sort((a,b)=> (a.status==='done') - (b.status==='done') || b.date.localeCompare(a.date)).slice(0,40);
   const typeL = { repair:'Repair', replacement:'Replacement', inspection:'Inspection' };
-  return head('Warranty', searchBox('wQ','Serial number, receipt or customer', ui.wq)) + `
+  return head('Warranty', searchBox('wQ','Serial number, receipt or customer', ui.wq) + scanBtn('wQ','single')) + `
   ${q.length < 2 ? `<section class="card"><p style="margin:0">Type or scan the serial number from the appliance to see who bought it, when, and whether it is still under warranty. You can also search by receipt number or customer name.</p></section>` : ''}
   ${q.length >= 2 ? `<div class="wgrid">${hits.map(x => { const w = warrantyInfo(x); const prod = S.products[x.i.productId];
     const claimsFor = list(S.claims).filter(c=>c.saleId===x.s.id && c.itemIndex===x.ix && (c.serial||'')===x.serial);
@@ -898,7 +958,7 @@ function customers(){
 /* ================= Sales log ================= */
 function sales(){
   const q = ui.saleQ.trim().toLowerCase();
-  const rows = list(S.sales).filter(s=>!q || (s.receipt+' '+saleCust(s)+' '+(isOnline(s)?'online ':'')+(s.delivery||'')+' '+staffName(s.staffId)+' '+s.items.map(i=>i.name+' '+unitSerials(i).join(' ')).join(' ')).toLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date));
+  const rows = list(S.sales).filter(s=>!q || (s.receipt+' '+saleCust(s)+' '+(isOnline(s)?'online '+DELIV[delivOf(s)][1]+' ':'')+(s.delivery||'')+' '+staffName(s.staffId)+' '+s.items.map(i=>i.name+' '+unitSerials(i).join(' ')).join(' ')).toLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date));
   const sum = rows.reduce((a,s)=>a+s.total-(s.refundTotal||0),0);
   return head('Sales log', searchBox('saleQ','Receipt, name, staff, serial or “online”',ui.saleQ)) + `
   <div class="bar"><span class="sub">${rows.length} ${rows.length===1?'sale':'sales'} · ${money(sum)} after refunds</span></div>
@@ -981,6 +1041,8 @@ function settings(){
         <label for="st_name" class="full">Shop name, shown on receipts<input id="st_name" required value="${esc(S.settings.name)}" ${can('settings')?'':'disabled'}></label>
         <label for="st_cur">Currency symbol<input id="st_cur" required value="${esc(S.settings.currency)}" ${can('settings')?'':'disabled'}></label>
         <label for="st_cc">Phone country code<input id="st_cc" inputmode="numeric" value="${esc(S.settings.country||'')}" placeholder="233" ${can('settings')?'':'disabled'}><span class="sub" style="font-weight:400">Used to open WhatsApp from local numbers like 024…</span></label>
+        <label for="st_owner">Owner’s WhatsApp number<input id="st_owner" type="tel" value="${esc(S.settings.ownerPhone||'')}" placeholder="024 000 0000" ${can('settings')?'':'disabled'}><span class="sub" style="font-weight:400">The daily summary is sent here.</span></label>
+        <label for="st_email" class="full">Email for the evening summary<input id="st_email" type="email" value="${esc(S.settings.summaryEmail||'')}" placeholder="owner@example.com" ${can('settings')?'':'disabled'}><span class="sub" style="font-weight:400">Sent automatically at 8 pm each day once email sending is switched on for this app.</span></label>
       </div>${can('settings')?'<button class="primary" type="submit" style="align-self:flex-start">Save details</button>':'<span class="sub">Only the owner can change these.</span>'}</form>
     </section>
     <section class="card"><div class="cardhead"><h3>Staff logins</h3>${ownerCan?`<button class="small primary" data-staff="">Add staff</button>`:''}</div>
@@ -992,6 +1054,10 @@ function settings(){
     ${can('staff') && sampleCount() ? `<section class="card"><div class="cardhead"><h3>Sample records</h3></div>
       <p class="sub" style="margin:0 0 14px">${sampleCount()} sample records from the prototype are in this shop: example appliances, customers, sales and installment plans. Removing them leaves everything you added untouched.</p>
       <button data-rmsamples>Remove sample records</button></section>` : ''}
+    ${can('staff') ? `<section class="card"><div class="cardhead"><h3>Backup</h3></div>
+      <p class="sub" style="margin:0 0 14px">Download everything in one Excel file: stock and serial numbers, stock movements, sales, returns, payments, installment plans, customers, warranty claims, day closes and staff. Passwords are never included. Keep a copy somewhere safe, such as a USB stick or email, at least once a week.</p>
+      <button class="primary" data-backup>Download full backup (Excel)</button></section>` : ''}
+    ${can('staff') ? signinsCard() : ''}
     <section class="card"><div class="cardhead"><h3>My login</h3></div>
       <p class="sub" style="margin:0 0 14px">Signed in as <b class="mono">${esc(meObj()?.username||'')}</b>. This device stays signed in for 30 days. Add the app to the home screen from your browser’s menu to open it like an app.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button data-changepw>Change my password</button><button data-signout>Sign out</button></div>
@@ -1008,6 +1074,99 @@ function removeSamplesForm(){
   $('#doRm').onclick = async () => { $('#doRm').disabled = true;
     try { const j = await db.removeSamples(); closeModal(); toast(j.removed ? 'Sample records removed' : 'No sample records were left'); render(); }
     catch(x){ $('#rmErr').textContent = x.message || 'Could not remove them.'; $('#doRm').disabled = false; } };
+}
+/* ---------- Camera barcode scanner ----------
+   Uses the browser's own barcode reader where it has one (Chrome on Android), otherwise ZXing. */
+const scanBtn = (target, mode, label = 'Scan') => `<button type="button" class="small scanbtn" data-scan="${target}|${mode}" aria-label="Scan a barcode with the camera">${IC.scan}${label}</button>`;
+const SCAN = { stream:null, stop:null, mode:'', target:'', got:[], last:'', lastAt:0 };
+function beep(){ try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(), g = a.createGain(); o.frequency.value = 1400; g.gain.value = .08; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + .09); setTimeout(() => a.close(), 300); } catch(e){} try { navigator.vibrate && navigator.vibrate(60); } catch(e){} }
+async function openScanner(target, mode){
+  if (!navigator.mediaDevices?.getUserMedia) { toast('This browser cannot use the camera. Type the serial number instead.'); return; }
+  Object.assign(SCAN, { mode, target, got:[], last:'', lastAt:0 });
+  $('#scanRoot').innerHTML = `<div class="scanner" role="dialog" aria-label="Barcode scanner"><video id="scanVid" playsinline muted></video><div class="frame"></div>
+    <div class="bottom"><div class="bar"><b>${mode === 'multi' ? 'Scan each box. Every serial is added to the list.' : 'Point the camera at the barcode.'}</b><button class="primary" data-scandone>${mode === 'multi' ? 'Done' : 'Cancel'}</button></div>
+    <div class="got" id="scanGot"></div><span class="sub" id="scanMsg">Starting the camera…</span></div></div>`;
+  try { SCAN.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal:'environment' }, width: { ideal:1280 }, height: { ideal:720 } }, audio:false }); }
+  catch(e){ closeScanner(); toast(e && e.name === 'NotAllowedError' ? 'Camera permission was refused. Allow the camera for this site in your browser settings.' : 'Could not start the camera.'); return; }
+  const v = $('#scanVid'); v.srcObject = SCAN.stream; try { await v.play(); } catch(e){}
+  $('#scanMsg').textContent = 'Hold the barcode inside the box, about a hand’s length away.';
+  const formats = ['code_128','code_39','code_93','ean_13','ean_8','upc_a','upc_e','itf','codabar','qr_code','data_matrix'];
+  let native = null;
+  if ('BarcodeDetector' in window) { try { const ok = await BarcodeDetector.getSupportedFormats(); native = new BarcodeDetector({ formats: formats.filter(f => ok.includes(f)) }); } catch(e){ native = null; } }
+  if (native) {
+    let alive = true; SCAN.stop = () => { alive = false; };
+    const tick = async () => { if (!alive) return; try { const r = await native.detect(v); if (r.length) gotCode(r[0].rawValue); } catch(e){} if (alive) setTimeout(tick, 150); };
+    tick();
+  } else {
+    try { await loadScript('/vendor/zxing.min.js'); } catch(e){ $('#scanMsg').textContent = 'Could not load the barcode reader. Check the connection.'; return; }
+    const reader = new ZXing.BrowserMultiFormatReader();
+    SCAN.stop = () => { try { reader.reset(); } catch(e){} };
+    reader.decodeFromStream(SCAN.stream, v, (res) => { if (res) gotCode(res.getText()); }).catch(() => {});
+  }
+}
+function gotCode(raw){
+  const code = String(raw || '').trim().toUpperCase(); if (!code) return;
+  const now = Date.now(); if (code === SCAN.last && now - SCAN.lastAt < 2000) return; SCAN.last = code; SCAN.lastAt = now;
+  const el = document.getElementById(SCAN.target); beep();
+  if (SCAN.mode === 'multi') {
+    if (SCAN.got.includes(code)) { $('#scanMsg').textContent = code + ' is already in the list.'; return; }
+    SCAN.got.push(code);
+    if (el) { const cur = parseSerials(el.value); if (!cur.includes(code)) el.value = [...cur, code].join('\n'); el.dispatchEvent(new Event('input', { bubbles:true })); }
+    $('#scanGot').innerHTML = SCAN.got.map(c => `<span>${esc(c)}</span>`).join(''); $('#scanMsg').textContent = `Added ${code}. ${SCAN.got.length} scanned.`;
+    return;
+  }
+  if (SCAN.mode === 'select' && el) {
+    const opt = [...el.options].find(o => o.value.toUpperCase() === code || o.textContent.trim().toUpperCase() === code);
+    if (!opt) { $('#scanMsg').textContent = `${code} is not on the shelf for this item. Scan the right box.`; return; }
+    el.value = opt.value; el.dispatchEvent(new Event('change', { bubbles:true }));
+  } else if (el) { el.value = code; el.dispatchEvent(new Event('input', { bubbles:true })); }
+  closeScanner(); toast('Scanned ' + code);
+}
+function closeScanner(){ try { SCAN.stop && SCAN.stop(); } catch(e){} SCAN.stop = null; if (SCAN.stream) SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; $('#scanRoot').innerHTML = ''; }
+function loadScript(src){ return new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(sc); }); }
+const xl = iso => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return String(iso); return iso.length <= 10 ? iso : isoOf(d) + ' ' + d.toTimeString().slice(0,5); };
+async function downloadBackup(){
+  toast('Preparing the backup…');
+  try { await loadScript('/vendor/xlsx.full.min.js'); } catch(e) { toast('Could not prepare the backup. Check the connection and try again.'); return; }
+  const wb = XLSX.utils.book_new();
+  const add = (name, rows) => { const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Note: 'No records yet' }]);
+    const keys = Object.keys(rows[0] || { Note: '' }); ws['!cols'] = keys.map(k => ({ wch: Math.min(40, Math.max(k.length, ...rows.slice(0,200).map(r => String(r[k] ?? '').length)) + 2) }));
+    XLSX.utils.book_append_sheet(wb, ws, name); };
+  const P = list(S.products), C = list(S.customers), SA = list(S.sales).sort((a,b)=>a.date.localeCompare(b.date));
+  add('About', [{ Shop: S.settings.name, 'Backup taken': xl(nowISO()), 'Taken by': meObj()?.name || '', Items: P.length, Customers: C.length, Sales: SA.length, 'Installment plans': list(S.plans).length, Currency: S.settings.currency }]);
+  add('Stock', P.sort((a,b)=>a.category.localeCompare(b.category)||a.name.localeCompare(b.name)).map(p => ({ Category: p.category, Brand: p.brand, Model: p.name, 'Cost price': p.cost, 'Selling price': p.price, 'On shelf': p.stock, 'Reorder at': p.reorderAt ?? '', 'Warranty (months)': p.warrantyMonths || 0, 'Energy rating': p.energy || '', 'Serials on shelf': serialsOf(p).join(', '), Added: xl(p.createdAt), 'Last received': xl(p.lastReceivedAt), 'Last sold': xl(p.lastSoldAt), 'Item ID': p.id })));
+  add('Serials on shelf', P.flatMap(p => serialsOf(p).map(sn => ({ Item: p.brand + ' ' + p.name, Category: p.category, Serial: sn, Received: xl(serialDatesOf(p)[sn]), 'Days in stock': serialDatesOf(p)[sn] ? daysSince(serialDatesOf(p)[sn]) : '' }))));
+  add('Stock movements', list(S.stockLog).sort((a,b)=>a.at.localeCompare(b.at)).map(m => ({ When: xl(m.at), 'Entered at': xl(m.enteredAt), Item: m.productName, Movement: (MOVE[m.type]||[])[1] || m.type, Units: m.qty, Serials: (m.serials||[]).join(', '), 'Removed serials': (m.removedSerials||[]).join(', '), By: staffName(m.by), Receipt: m.receipt || '', 'Supplier or invoice': m.supplier || '', Note: m.note || '' })));
+  add('Sales', SA.flatMap(s => s.items.map(i => ({ Date: xl(s.date), Receipt: s.receipt, Channel: isOnline(s) ? 'Online' : 'In shop', Customer: saleCust(s), Phone: S.customers[s.customerId]?.phone || '', 'Served by': staffName(s.staffId), Item: i.name, Qty: i.qty, 'Unit price': i.price, 'Unit cost': i.cost ?? '', Serials: unitSerials(i).join(', '), 'Warranty (months)': i.warrantyMonths || 0, Payment: METHODS[s.method], 'Sale subtotal': saleSub(s), Discount: saleDisc(s), 'Discount reason': s.discountNote || '', 'Sale total': s.total, Refunded: s.refundTotal || 0, 'Delivery address': s.delivery || '', 'Delivery status': isOnline(s) ? DELIV[s.deliveryStatus || 'pending'][1] : '' }))));
+  add('Returns', SA.flatMap(s => (s.returns||[]).map(r => ({ Date: xl(r.at || r.date), Receipt: s.receipt, Customer: saleCust(s), Units: (r.units||[]).length, Serials: (r.units||[]).map(u=>u.serial).filter(Boolean).join(', '), Refund: r.refund, 'Refunded by': PAYM[r.method] || r.method, Reason: r.reason, 'Back on shelf': r.restocked ? 'Yes' : 'No', Note: r.note || '', By: staffName(r.staffId) }))));
+  add('Installment plans', list(S.plans).map(p => { const st = planStats(p); return { Customer: custName(p.customerId), Phone: S.customers[p.customerId]?.phone || '', Item: p.productName, Total: p.total, Deposit: p.deposit, 'Number of payments': p.count, Instalment: p.instalment, Frequency: p.freq, Started: p.startDate, Paid: st.paid, Balance: st.balance, Status: st.label, 'Next due': st.nextDue || '' }; }));
+  add('Payments', list(S.plans).flatMap(p => (p.payments||[]).map(x => ({ When: xl(x.at || x.date), Customer: custName(p.customerId), Item: p.productName, Amount: x.amount, 'Paid by': PAYM[x.method] || x.method, Type: x.deposit ? 'Deposit' : 'Instalment', By: staffName(x.staffId) }))).sort((a,b)=>a.When.localeCompare(b.When)));
+  add('Customers', C.sort((a,b)=>a.name.localeCompare(b.name)).map(c => { const ss = SA.filter(s=>s.customerId===c.id); const owes = list(S.plans).filter(p=>p.customerId===c.id).map(planStats).reduce((a,x)=>a+x.balance,0);
+    return { Name: c.name, Phone: c.phone, Area: c.area || '', 'ID number': c.idNumber || '', Added: xl(c.createdAt), Purchases: ss.length, 'Total bought': round2(ss.reduce((a,s)=>a+s.total-(s.refundTotal||0),0)), Owes: round2(owes) }; }));
+  add('Warranty claims', list(S.claims).sort((a,b)=>a.date.localeCompare(b.date)).map(c => ({ Logged: xl(c.loggedAt || c.date), Item: c.productName, Serial: c.serial || '', Customer: custName(c.customerId), Type: c.type, Problem: c.note, Status: c.status === 'done' ? 'Resolved' : 'Open', Outcome: c.outcome || '', Resolved: xl(c.resolvedAtTime || c.resolvedAt), 'Logged by': staffName(c.staffId) })));
+  add('Day closes', list(S.closes).sort((a,b)=>a.date.localeCompare(b.date)).map(c => ({ Date: c.date, 'Cash expected': c.expected?.cash, 'Cash counted': c.counted?.cash, 'Cash difference': c.diff?.cash, 'MoMo expected': c.expected?.momo, 'MoMo counted': c.counted?.momo, 'MoMo difference': c.diff?.momo, Card: c.expected?.card, Transfer: c.expected?.transfer, Note: c.note || '', 'Closed by': staffName(c.staffId), 'Closed at': xl(c.at) })));
+  add('Staff', list(S.staff).map(p => ({ Name: p.name, Username: p.username || '', Role: p.role, 'Largest discount %': p.maxDiscount ?? '', Active: p.active === false ? 'No' : 'Yes' })));
+  const data = XLSX.write(wb, { bookType:'xlsx', type:'array' });
+  const name = 'unicorn-backup-' + isoOf(new Date()) + '-' + new Date().toTimeString().slice(0,5).replace(':','') + '.xlsx';
+  const url = URL.createObjectURL(new Blob([data], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 3000);
+  toast('Backup downloaded');
+}
+function deviceName(ua){ ua = ua || '';
+  const os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad/i.test(ua) ? 'iPhone' : /Windows/i.test(ua) ? 'Windows' : /Mac OS/i.test(ua) ? 'Mac' : /Linux/i.test(ua) ? 'Linux' : 'Unknown device';
+  const br = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : '';
+  return br ? os + ' · ' + br : os; }
+function signinsCard(){
+  if (!ui.signins && !ui.signinsLoading) { ui.signinsLoading = true; API.call('signins').then(j => { ui.signins = j; }).catch(() => { ui.signins = { attempts: [], locked: [], error: true }; }).finally(() => { ui.signinsLoading = false; if (tab === 'settings') safeRender(); }); }
+  const d = ui.signins;
+  const nameOf = u => list(S.staff).find(x => x.username === u)?.name || u;
+  return `<section class="card"><div class="cardhead"><h3>Sign-in activity</h3><button class="small" data-signins-refresh>Refresh</button></div>
+    ${!d ? '<div class="empty">Loading…</div>' : d.error ? '<div class="empty">Could not load sign-ins. Check the connection and refresh.</div>' : `
+    ${d.locked.length ? `<div class="banner" style="margin-bottom:12px">${d.locked.map(l => `<div class="bar"><span><b>${esc(nameOf(l.username))}</b> (<span class="mono">${esc(l.username)}</span>) is locked until ${fmtDT(l.until)} after too many wrong passwords.</span><button class="small" data-unlock="${esc(l.username)}">Unlock</button></div>`).join('')}</div>` : ''}
+    <div class="tw" style="max-height:340px;overflow-y:auto"><table><thead><tr><th>When</th><th>Login</th><th>Result</th><th>Device</th></tr></thead><tbody>
+    ${d.attempts.slice(0, 50).map(a => `<tr><td style="white-space:nowrap">${fmtDT(a.at)}</td><td>${esc(nameOf(a.username))}<br><span class="sub mono">${esc(a.username)}</span></td><td>${a.ok ? '<span class="pill good">Signed in</span>' : '<span class="pill bad">Wrong password</span>'}</td><td class="sub">${esc(deviceName(a.agent))}${a.ip ? '<br><span class="mono">' + esc(a.ip) + '</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty">No sign-ins yet.</div></td></tr>'}
+    </tbody></table></div>`}
+    <p class="sub" style="margin:12px 0 0">After ${5} wrong passwords a login is locked for 15 minutes. Resetting someone’s password also unlocks them.</p></section>`;
 }
 function staffForm(id){
   const p = id ? S.staff[id] : { name:'', username:'', role:'sales', maxDiscount:5, active:true };
@@ -1062,6 +1221,10 @@ function showReceipt(id){
   const c = S.customers[s.customerId]; const allBack = retUnits(s).length >= unitCount(s);
   modal(mhead('Receipt ' + esc(s.receipt)) + `<div class="printed" id="rcpt">${esc(receiptText(s))}</div>
     <div class="bar"><span class="sub">Print it, or send it by WhatsApp or SMS.</span><span style="display:flex;gap:8px;flex-wrap:wrap">${c?waBtn(c.phone, receiptText(s)):''}<button data-copy="rcpt">Copy</button><button class="primary" data-print="${s.id}">Print</button></span></div>
+    ${isOnline(s) && !allBack ? `<div class="stack" style="gap:8px;border-top:1px solid var(--line);padding-top:14px"><div class="bar"><span class="kicker">Delivery</span><span class="pill ${DELIV[delivOf(s)][0]}">${DELIV[delivOf(s)][1]}</span></div>
+      ${s.delivery?`<span class="sub">Deliver to: ${esc(s.delivery)}</span>`:''}
+      <div class="sched">${(s.deliveryLog||[]).map(x=>`<div class="s"><span>${DELIV[x.status]?.[1]||x.status}</span><span class="sub">${fmtDT(x.at)}${x.by?' · '+esc(staffName(x.by)):''}</span></div>`).join('')}</div>
+      ${NEXT_DELIV[delivOf(s)] && can('sell') ? `<button class="primary" data-deliv="${s.id}|${NEXT_DELIV[delivOf(s)][0]}" style="align-self:flex-start">${NEXT_DELIV[delivOf(s)][1]}</button>` : ''}</div>` : ''}
     ${can('returns') && !allBack ? `<div class="bar" style="border-top:1px solid var(--line);padding-top:14px"><span class="sub">Customer bringing something back?</span><button data-return="${s.id}">Return items</button></div>` : ''}
     ${can('deleteItems') && allBack ? `<div class="bar" style="border-top:1px solid var(--line);padding-top:14px"><span class="sub">Everything on this sale was returned. If it was a test or a mistake, you can remove it.</span><button data-delsale="${s.id}">Delete this sale</button></div>` : ''}`);
 }
@@ -1160,7 +1323,7 @@ function closeDayForm(){
   $('#cdForm').addEventListener('submit', async e => { e.preventDefault();
     const cash = round2($('#cd_cash').value), momo = round2($('#cd_momo').value);
     const doc = { date:t, expected:f.by, counted:{ cash, momo }, diff:{ cash: round2(cash - f.by.cash), momo: round2(momo - f.by.momo) }, note: $('#cd_note').value.trim(), staffId: meObj()?.id||'', at: new Date().toISOString() };
-    if (await write(()=>db.collection('closes').doc(t).set(doc), 'Day closed')) closeModal(); });
+    if (await write(()=>db.collection('closes').doc(t).set(doc), 'Day closed')) { closeModal(); if (canSee('reports')) setTimeout(summaryModal, 300); } });
 }
 function productForm(id){
   const p = id ? S.products[id] : { name:'', brand:'', category:'', cost:'', price:'', stock:0, reorderAt:2, warrantyMonths:12, energy:'' };
@@ -1177,7 +1340,7 @@ function productForm(id){
     <label for="pf_stock">On shelf<input id="pf_stock" type="number" min="0" required value="${esc(p.stock)}"></label>
     <label for="pf_reorder">Reorder when at<input id="pf_reorder" type="number" min="0" value="${esc(p.reorderAt ?? 2)}"></label>
     <label for="pf_energy" class="full">Energy rating<select id="pf_energy"><option value="">Not rated</option>${'ABCDEFG'.split('').map(l=>`<option ${p.energy===l?'selected':''}>${l}</option>`).join('')}</select></label>
-    <label for="pf_serials" class="full">Serial numbers on the shelf, one per line<textarea id="pf_serials" rows="4" class="mono" placeholder="HSR34-77901&#10;HSR34-77902">${esc(serialsOf(p).join('\n'))}</textarea><span class="sub" style="font-weight:400">When serials are listed, the shelf count is the number of serials.</span></label>
+    <label for="pf_serials" class="full">Serial numbers on the shelf, one per line<textarea id="pf_serials" rows="4" class="mono" placeholder="HSR34-77901&#10;HSR34-77902">${esc(serialsOf(p).join('\n'))}</textarea>${scanBtn('pf_serials','multi','Scan boxes')}<span class="sub" style="font-weight:400">When serials are listed, the shelf count is the number of serials.</span></label>
     ${id ? `<p class="sub full" style="margin:0">Added ${p.createdAt?fmtDT(p.createdAt):'before dates were recorded'}${p.lastReceivedAt?' · last received '+fmtDT(p.lastReceivedAt):''}. Changes to the shelf count or serials here are saved in the item’s stock history with the time and your name.</p>`
       : `<label for="pf_at">Date and time received<input id="pf_at" type="datetime-local" value="${localDT()}" max="${localDT()}" required></label>
     <label for="pf_sup">Supplier or invoice (optional)<input id="pf_sup" placeholder="For example Melcom, INV-2231"></label>`}
@@ -1223,7 +1386,7 @@ function restockForm(id){
   const p = S.products[id];
   modal(mhead('Restock','Cancel') + `<div class="itemcell"><span class="glyph">${glyph(p.category)}</span><span><b>${esc(p.brand)} ${esc(p.name)}</b><br><span class="sub">${p.stock} on the shelf now</span></span></div>
     <form id="rsForm" class="stack" style="gap:18px"><div class="fields">
-    <label for="rs_serials" class="full">Serial numbers received, one per line<textarea id="rs_serials" rows="5" class="mono" placeholder="Type or scan each serial"></textarea></label>
+    <label for="rs_serials" class="full">Serial numbers received, one per line<textarea id="rs_serials" rows="5" class="mono" placeholder="Type or scan each serial"></textarea>${scanBtn('rs_serials','multi','Scan boxes')}</label>
     <label for="rs_qty">Units without serials<input id="rs_qty" type="number" min="0" value="0"></label>
     <label for="rs_cost">Cost per unit<input id="rs_cost" type="number" min="0" step="0.01" value="${esc(p.cost)}"></label>
     <label for="rs_at">Date and time received<input id="rs_at" type="datetime-local" value="${localDT()}" max="${localDT()}" required></label>
@@ -1304,8 +1467,8 @@ function serialForm(){
     for (let u=0; u<i.qty; u++){ const fid = `sn_${ix}_${u}`; const lbl = esc(i.name) + (i.qty>1?` · unit ${u+1}`:'');
       const pref = (i.pref||[]).filter(x=>avail.includes(x)); const rest = avail.filter(x=>!pref.includes(x)); const want = pref[u] ?? rest[u - pref.length] ?? avail[u];
       fields.push(avail.length
-        ? `<label for="${fid}" class="full">${lbl}<select id="${fid}" class="mono" data-item="${ix}">${avail.map(sn=>`<option ${sn===want?'selected':''}>${esc(sn)}</option>`).join('')}</select></label>`
-        : `<label for="${fid}" class="full">${lbl}<input id="${fid}" autocomplete="off" class="mono" data-item="${ix}" placeholder="No serials on file. Type it, or leave blank"></label>`); } });
+        ? `<label for="${fid}" class="full"><span class="bar">${lbl}${scanBtn(fid,'select','Scan box')}</span><select id="${fid}" class="mono" data-item="${ix}">${avail.map(sn=>`<option ${sn===want?'selected':''}>${esc(sn)}</option>`).join('')}</select></label>`
+        : `<label for="${fid}" class="full"><span class="bar">${lbl}${scanBtn(fid,'single','Scan box')}</span><input id="${fid}" autocomplete="off" class="mono" data-item="${ix}" placeholder="No serials on file. Type or scan it, or leave blank"></label>`); } });
   modal(mhead('Which units are going out?','Back') + `<p class="muted" style="margin:0">Pick the serial number on each box. It comes off the shelf list and goes on the receipt for warranty claims.</p>
     <form id="serForm" class="stack" style="gap:18px"><div class="fields">${fields.join('')}</div><span class="err" id="serErr" role="alert"></span>
     <button class="go" type="submit" style="padding:14px">Record sale · ${money(round2(cartSub()-cartDisc()))}</button></form>`);
@@ -1337,6 +1500,7 @@ async function completeSale(){
     }
     const sref = db.collection('sales').doc(); saleId = sref.id;
     const sale = { id:sref.id, receipt:'R-' + Date.now().toString(36).slice(-6).toUpperCase(), date:new Date().toISOString(), customerId:cart.customerId||'', method:cart.method, subtotal:sub, discount:disc, discountNote: disc ? cart.discNote.trim() : '', total, staffId, channel: cart.channel === 'online' ? 'online' : 'shop', delivery: cart.channel === 'online' ? cart.delivery.trim() : '',
+      ...(cart.channel === 'online' ? { deliveryStatus:'pending', deliveryLog:[{ status:'pending', at: nowISO(), by: staffId }] } : {}),
       items: items.map(i=>{ const sd = serialDatesOf(locked[i.productId].data); const rec = {}; (i.serials||[]).forEach(sn => { if (sd[sn]) rec[sn] = sd[sn]; });
         return { productId:i.productId, name:i.name, qty:i.qty, price:i.price, cost: Number(locked[i.productId].data.cost||0), serials:i.serials||[], serial:(i.serials||[]).join(', '), received: rec, warrantyMonths:i.warrantyMonths||0 }; }) };
     let pref = null;
@@ -1362,7 +1526,9 @@ function moreSheet(){
 document.addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) { if (e.target.id==='ov') closeModal(); return; }
   const d = b.dataset;
-  if (d.tab){ tab = d.tab; ui.q=''; ui.cat='all'; try { localStorage.setItem('shopTab', tab); } catch(x){} closeModal(); render(); window.scrollTo(0,0); return; }
+  if (d.tab){ if (d.tab === 'settings') ui.signins = null; tab = d.tab; ui.q=''; ui.cat='all'; try { localStorage.setItem('shopTab', tab); } catch(x){} closeModal(); render(); window.scrollTo(0,0); return; }
+  if (d.scan){ const [t, m] = d.scan.split('|'); return openScanner(t, m); }
+  if ('scandone' in d) return closeScanner();
   if ('close' in d) return closeModal();
   if ('more' in d) return moreSheet();
   if (d.cat){ ui.cat = d.cat; return render(); }
@@ -1386,6 +1552,7 @@ document.addEventListener('click', async e => {
   if (d.receipt) return showReceipt(d.receipt);
   if (d.return) return returnForm(d.return);
   if (d.delsale) return deleteSaleForm(d.delsale);
+  if (d.deliv){ const [sid, st] = d.deliv.split('|'); return setDelivery(sid, st); }
   if (d.claim){ const [sid, ix, sn] = d.claim.split('|'); return claimForm(sid, +ix, sn); }
   if (d.resolve) return resolveForm(d.resolve);
   if ('closeDay' in d) return closeDayForm();
@@ -1397,6 +1564,10 @@ document.addEventListener('click', async e => {
   if ('retry' in d) return boot();
   if ('signout' in d){ API.setToken(null); setMe(null); signedOut(); BOOT.msg = ''; closeModal(); return render(); }
   if ('changepw' in d) return passwordForm();
+  if ('backup' in d) return downloadBackup();
+  if ('summary' in d) return summaryModal();
+  if ('signinsRefresh' in d){ ui.signins = null; return render(); }
+  if (d.unlock){ try { await API.call('unlock', { username: d.unlock }); toast('Login unlocked'); } catch(x){ toast(x.message || 'Could not unlock'); } ui.signins = null; return render(); }
   if ('rmsamples' in d) return removeSamplesForm();
   if (d.copy){ const el = document.getElementById(d.copy); const txt = el.textContent;
     try { await navigator.clipboard.writeText(txt); toast('Copied'); }
@@ -1405,9 +1576,9 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('submit', async e => {
   if (e.target.id === 'setForm') { e.preventDefault();
-    await write(()=>db.doc('settings/shop').set({ name:$('#st_name').value.trim(), currency:$('#st_cur').value.trim(), country:$('#st_cc').value.replace(/\D/g,'') }), 'Details saved'); }
+    await write(()=>db.doc('settings/shop').set({ ...S.settings, name:$('#st_name').value.trim(), currency:$('#st_cur').value.trim(), country:$('#st_cc').value.replace(/\D/g,''), ownerPhone:$('#st_owner').value.trim(), summaryEmail:$('#st_email').value.trim() }), 'Details saved'); }
 });
-document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key==='Escape') { if ($('#scanRoot').innerHTML) return closeScanner(); closeModal(); } });
 let qTimer;
 const refocus = id => { const el = document.getElementById(id); if (el){ el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch(x){} } };
 const TYPING = ['cartDeliv','moveQ','sellQ','stockQ','custQ','saleQ','wQ','cartDep','cartCount','discVal','discNote'];

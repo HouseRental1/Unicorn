@@ -59,6 +59,36 @@ const DELETE = `update shop_docs set deleted = true, data = null, rev = nextval(
 const DELETE_LIVE = `update shop_docs set deleted = true, data = null, rev = nextval('shop_rev'), updated_at = now()
   where col = $1 and id = $2 and not deleted returning col, id, data, deleted, rev`;
 
+/* ---------- Sign-in protection ---------- */
+const MAX_FAILS = 5, LOCK_MIN = 15, MAX_IP_FAILS = 20;
+function clientIp(req) { return String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64); }
+async function recordLogin(username, userId, ok, ip, agent) {
+  await q(`insert into shop_logins (username, user_id, ok, ip, agent) values ($1, $2, $3, $4, $5)`, [username, userId, ok, ip, agent]);
+  if (Math.random() < 0.02) await q(`delete from shop_logins where at < now() - interval '180 days'`);
+}
+// Failed tries for a username since its last successful sign-in, within the lock window.
+async function recentFails(username) {
+  const [r] = await q(`select count(*)::int as n from shop_logins where username = $1 and not ok and at > now() - interval '${LOCK_MIN} minutes'
+    and at > coalesce((select max(at) from shop_logins where username = $1 and ok), 'epoch'::timestamptz)`, [username]);
+  return r.n;
+}
+async function lockState(username, ip) {
+  const fails = await q(`select at from shop_logins where username = $1 and not ok and at > now() - interval '${LOCK_MIN} minutes'
+    and at > coalesce((select max(at) from shop_logins where username = $1 and ok), 'epoch'::timestamptz) order by at asc`, [username]);
+  if (fails.length >= MAX_FAILS) return { kind: 'user', until: new Date(new Date(fails[MAX_FAILS - 1].at).getTime() + LOCK_MIN * 60000).toISOString() };
+  if (ip) {
+    const [r] = await q(`select count(*)::int as n, max(at) as last from shop_logins where ip = $1 and not ok and at > now() - interval '${LOCK_MIN} minutes'`, [ip]);
+    if (r.n >= MAX_IP_FAILS) return { kind: 'device', until: new Date(new Date(r.last).getTime() + LOCK_MIN * 60000).toISOString() };
+  }
+  return null;
+}
+function lockError(l) {
+  const mins = Math.max(1, Math.ceil((new Date(l.until) - Date.now()) / 60000));
+  return new HttpError(429, 'locked', l.kind === 'user'
+    ? `Too many wrong passwords. This login is locked for ${mins} more minute${mins === 1 ? '' : 's'}. An owner can unlock it in Settings.`
+    : `Too many wrong passwords from this device. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`);
+}
+
 const actions = {
   async status() {
     const configured = Boolean(process.env.SESSION_SECRET && process.env.SETUP_CODE);
@@ -86,11 +116,40 @@ const actions = {
 
   async login(req) {
     const b = body(req);
-    const username = String(b.username || '').trim().toLowerCase();
+    const username = String(b.username || '').trim().toLowerCase().slice(0, 60);
+    const ip = clientIp(req), agent = String(req.headers['user-agent'] || '').slice(0, 300);
+    const lock = await lockState(username, ip);
+    if (lock) { await recordLogin(username, null, false, ip, agent); throw lockError(lock); }
     const rows = await q(`select id, username, pw_hash, role, active from shop_users where username = $1`, [username]);
     const u = rows[0];
-    if (!u || !u.active || !checkPassword(String(b.password || ''), u.pw_hash)) { await sleep(700); throw new HttpError(403, 'bad_login', 'That username or password is not right.'); }
+    if (!u || !u.active || !checkPassword(String(b.password || ''), u.pw_hash)) {
+      await recordLogin(username, u?.id || null, false, ip, agent);
+      await sleep(700);
+      const after = await lockState(username, ip);
+      if (after) throw lockError(after);
+      const left = Math.max(0, MAX_FAILS - (await recentFails(username)));
+      throw new HttpError(403, 'bad_login', `That username or password is not right.${left <= 2 ? ` ${left} more ${left === 1 ? 'try' : 'tries'} before this login is locked for ${LOCK_MIN} minutes.` : ''}`);
+    }
+    await recordLogin(username, u.id, true, ip, agent);
     return { token: makeToken(u), user: await userOut(u) };
+  },
+
+  // Owner only: recent sign-in attempts and any logins that are locked right now.
+  async signins(req) {
+    await requireAuth(req, 'owner');
+    const rows = await q(`select username, user_id, ok, ip, agent, at from shop_logins order by at desc limit 100`);
+    const locked = [];
+    for (const u of await q(`select distinct username from shop_logins where not ok and at > now() - interval '${LOCK_MIN} minutes'`)) {
+      const l = await lockState(u.username, null); if (l) locked.push({ username: u.username, until: l.until });
+    }
+    return { attempts: rows.map(r => ({ ...r, at: new Date(r.at).toISOString() })), locked };
+  },
+
+  async unlock(req) {
+    await requireAuth(req, 'owner');
+    const username = String(body(req).username || '').trim().toLowerCase();
+    await q(`delete from shop_logins where username = $1 and not ok and at > now() - interval '${LOCK_MIN} minutes'`, [username]);
+    return { ok: true };
   },
 
   async me(req) {
@@ -130,7 +189,7 @@ const actions = {
       const active = b.active === undefined ? u.active : Boolean(b.active);
       if (u.id === me.id && (!active || role !== 'owner')) throw new HttpError(400, 'invalid_argument', 'You cannot remove your own owner access. Ask another owner to do it.');
       if (u.role === 'owner' && (role !== 'owner' || !active) && !(await activeOwners(u.id))) throw new HttpError(400, 'invalid_argument', 'Keep at least one active owner.');
-      if (b.password) { checkPw(b.password); await q(`update shop_users set pw_hash = $1 where id = $2`, [hashPassword(b.password), u.id]); }
+      if (b.password) { checkPw(b.password); await q(`update shop_users set pw_hash = $1 where id = $2`, [hashPassword(b.password), u.id]); await q(`delete from shop_logins where username = $1 and not ok`, [u.username]); }
       await q(`update shop_users set role = $1, active = $2 where id = $3`, [role, active, u.id]);
       const patch = { role, active };
       if (b.name !== undefined) patch.name = cleanName(b.name);
@@ -202,7 +261,7 @@ const actions = {
     return { acquired: rows.length === 1 && rows[0].holder === holder };
   },
 };
-const POST_ONLY = new Set(['setup', 'login', 'password', 'users', 'remove-samples', 'write', 'lock']);
+const POST_ONLY = new Set(['unlock', 'setup', 'login', 'password', 'users', 'remove-samples', 'write', 'lock']);
 
 export default async function handler(req, res) {
   const name = String(req.query.action || '');

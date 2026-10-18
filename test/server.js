@@ -11,16 +11,18 @@ globalThis.__TEST_DB__ = {
 };
 process.env.SESSION_SECRET = 'test-secret-0123456789abcdef';
 process.env.SETUP_CODE = 'TILL-TEST-42';
+process.env.CRON_SECRET = 'cron-test';
 const { default: handler } = await import('../api/[action].js');
+const { default: summaryHandler } = await import('../api/daily-summary.js');
 const root = path.resolve('public');
-const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.svg':'image/svg+xml', '.png':'image/png', '.webmanifest':'application/manifest+json' };
+const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.svg':'image/svg+xml', '.png':'image/png', '.webmanifest':'application/manifest+json', '.xlsx':'application/octet-stream' };
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
   if (u.pathname.startsWith('/api/')) {
     let raw = ''; for await (const c of req) raw += c;
     req.query = { ...Object.fromEntries(u.searchParams), action: u.pathname.slice(5) };
     req.body = raw ? JSON.parse(raw) : {};
-    return handler(req, res);
+    return u.pathname === '/api/daily-summary' ? summaryHandler(req, res) : handler(req, res);
   }
   const f = path.join(root, u.pathname === '/' ? 'index.html' : u.pathname);
   if (!f.startsWith(root) || !fs.existsSync(f)) { res.statusCode = 404; return res.end('not found'); }

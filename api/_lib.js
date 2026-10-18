@@ -43,6 +43,16 @@ export async function ensureSchema() {
     role text not null,
     active boolean not null default true,
     created_at timestamptz not null default now())`);
+  await q(`create table if not exists shop_logins (
+    id bigserial primary key,
+    username text not null,
+    user_id text,
+    ok boolean not null,
+    ip text,
+    agent text,
+    at timestamptz not null default now())`);
+  await q(`create index if not exists shop_logins_user on shop_logins (username, at)`);
+  await q(`create index if not exists shop_logins_ip on shop_logins (ip, at)`);
   // One-time rename: shops still on a placeholder name become Unicorn Home Appliances.
   await q(`update shop_docs set data = data || '{"name":"Unicorn Home Appliances"}'::jsonb, rev = nextval('shop_rev'), updated_at = now()
     where col = 'settings' and id = 'shop' and not deleted and data->>'name' in ('Home Appliances', 'Home Appliances (sample data)')`);
