@@ -368,14 +368,14 @@ textarea{min-height:44px}
 (() => {
 'use strict';
 /* ================= State ================= */
-const COLS = ['products','customers','sales','plans','staff','claims','closes'];
-const S = { products:{}, customers:{}, sales:{}, plans:{}, staff:{}, claims:{}, closes:{}, settings:{ name:'Home Appliances', currency:'GH₵', country:'233' } };
+const COLS = ['products','customers','sales','plans','staff','claims','closes','stockLog'];
+const S = { products:{}, customers:{}, sales:{}, plans:{}, staff:{}, claims:{}, closes:{}, stockLog:{}, settings:{ name:'Home Appliances', currency:'GH₵', country:'233' } };
 const ready = Object.fromEntries(COLS.map(c=>[c,false]));
 let db = null, dl = null, tab = 'overview', readOnly = false, me = null, meUser = null;
 const TAB_ID = 't' + Math.random().toString(36).slice(2,10);
 const freshCart = () => ({ items:[], customerId:'', method:'cash', depositMethod:'cash', deposit:'', count:6, freq:'monthly', discType:'amt', discVal:'', discNote:'' });
 const cart = freshCart();
-const ui = { q:'', cat:'all', planFilter:'open', custQ:'', saleQ:'', wq:'', period:'month' };
+const ui = { stockView:'items', moveQ:'', q:'', cat:'all', planFilter:'open', custQ:'', saleQ:'', wq:'', period:'month' };
 try { const t = localStorage.getItem('shopTab'); if (t) tab = t;  } catch(e) {}
 
 /* ================= Icons ================= */
@@ -438,6 +438,14 @@ const avatarN = (key, name) => `<span class="av" style="background:${avColor(key
 const avatar = id => avatarN(id, custName(id));
 const searchBox = (id, ph, val) => `<label class="search" for="${id}" aria-label="${esc(ph)}">${IC.search}<input id="${id}" placeholder="${esc(ph)}" value="${esc(val)}" autocomplete="off"></label>`;
 const serialsOf = p => Array.isArray(p?.serials) ? p.serials : [];
+const serialDatesOf = p => (p && p.serialDates && typeof p.serialDates === 'object') ? p.serialDates : {};
+const nowISO = () => new Date().toISOString();
+const localDT = iso => { const d = iso ? new Date(iso) : new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
+const fromLocal = v => { const d = v ? new Date(v) : new Date(); return isNaN(d) ? nowISO() : d.toISOString(); };
+const daysSince = iso => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
+/* Every stock movement is written to stockLog with when it happened (at), when it was entered (enteredAt) and who entered it (by). */
+function logStock(e){ const ref = db.collection('stockLog').doc(); return ref.set({ id: ref.id, at: e.at || nowISO(), enteredAt: nowISO(), by: meObj()?.id || '', ...e }); }
+const MOVE = { added:['acc','Added to stock'], received:['good','Received'], sold:['plain','Sold'], returned:['warn','Returned to shelf'], adjusted:['warn','Adjusted'], deleted:['bad','Item deleted'] };
 const parseSerials = t => [...new Set(String(t||'').split(/[\n,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))];
 const serialOwner = (sn, exceptId) => list(S.products).find(p => p.id!==exceptId && serialsOf(p).includes(sn));
 const unitSerials = i => Array.isArray(i.serials) && i.serials.length ? i.serials : String(i.serial||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -738,19 +746,59 @@ function sell(){
 
 /* ================= Stock ================= */
 function stock(){
+  const viewSeg = `<div class="seg"><button data-sview="items" aria-pressed="${ui.stockView==='items'}">Items</button><button data-sview="moves" aria-pressed="${ui.stockView==='moves'}">Stock movements</button></div>`;
+  if (ui.stockView === 'moves') return stockMoves(viewSeg);
   const rows = list(S.products).filter(p=>match(p,ui.q) && (ui.cat==='all'||p.category===ui.cat)).sort((a,b)=>a.category.localeCompare(b.category)||a.name.localeCompare(b.name));
   const units = list(S.products).reduce((a,p)=>a+p.stock,0);
-  return head('Stock', searchBox('stockQ','Name, brand or serial number',ui.q) + (can('editItems')?`<button class="primary" data-editprod="">Add item</button>`:'')) + `
+  return head('Stock', viewSeg + searchBox('stockQ','Name, brand or serial number',ui.q) + (can('editItems')?`<button class="primary" data-editprod="">Add item</button>`:'')) + `
   <div class="bar">${catChips()}<span class="sub">${list(S.products).length} items · ${units} units</span></div>
-  <section class="card tcard tw"><table><thead><tr><th>Item</th><th>Energy</th>${canSee('editItems')?'<th class="r">Cost</th>':''}<th class="r">Price</th>${canSee('editItems')?'<th class="r">Margin</th>':''}<th>On shelf</th><th>Warranty</th><th></th></tr></thead><tbody>
+  <section class="card tcard tw"><table><thead><tr><th>Item</th><th>Energy</th>${canSee('editItems')?'<th class="r">Cost</th>':''}<th class="r">Price</th>${canSee('editItems')?'<th class="r">Margin</th>':''}<th>On shelf</th><th>Last received</th><th>Warranty</th><th></th></tr></thead><tbody>
   ${rows.map(p=>{ const m = p.price? (p.price-p.cost)/p.price*100:0; const ro = p.reorderAt ?? 2; const lowS = p.stock <= ro; const cap = Math.max(ro*3, p.stock, 1); const sn = serialsOf(p);
-    return `<tr><td><span class="itemcell"><span class="glyph">${glyph(p.category)}</span><span><b>${esc(p.brand)} ${esc(p.name)}</b><br>${sn.length ? `<button class="link mono" style="font-size:12px;font-weight:500" data-serials="${p.id}">S/N ${esc(sn[0])}${sn.length>1?' +'+(sn.length-1)+' more':''}</button>` : `<span class="sub">${p.stock>0?'No serials recorded':'None on shelf'}</span>`}</span></span></td>
+    return `<tr><td><span class="itemcell"><span class="glyph">${glyph(p.category)}</span><span><b>${esc(p.brand)} ${esc(p.name)}</b><br>${sn.length ? `<button class="link mono" style="font-size:12px;font-weight:500" data-history="${p.id}">S/N ${esc(sn[0])}${sn.length>1?' +'+(sn.length-1)+' more':''}</button>` : `<span class="sub">${p.stock>0?'No serials recorded':'None on shelf'}</span>`}</span></span></td>
     <td>${p.energy?`<span class="energy e-${esc(p.energy)}">${esc(p.energy)}</span>`:'<span class="sub">–</span>'}</td>
     ${canSee('editItems')?`<td class="r">${money(p.cost)}</td>`:''}<td class="r"><b>${money(p.price)}</b></td>${canSee('editItems')?`<td class="r">${m.toFixed(0)}%</td>`:''}
     <td style="white-space:nowrap"><b class="num">${p.stock}</b><span class="meter ${p.stock===0?'out':lowS?'low':''}"><i style="width:${Math.min(100,p.stock/cap*100)}%"></i></span></td>
+    <td style="white-space:nowrap">${p.lastReceivedAt ? `${fmtDT(p.lastReceivedAt)}<br><span class="sub">${daysSince(p.lastReceivedAt)===0?'today':daysSince(p.lastReceivedAt)+' days ago'}</span>` : '<span class="sub">Not recorded</span>'}</td>
     <td>${p.warrantyMonths||0} mo</td>
-    <td class="r" style="white-space:nowrap">${can('restock')?`<button class="small" data-restock="${p.id}">Restock</button> `:''}${can('editItems')?`<button class="small" data-editprod="${p.id}">Edit</button>`:''}</td></tr>`;}).join('') || `<tr><td colspan="8"><div class="empty">${list(S.products).length?'No items match.':'No items yet. Add your first appliance.'}</div></td></tr>`}
+    <td class="r" style="white-space:nowrap"><button class="small" data-history="${p.id}">History</button> ${can('restock')?`<button class="small" data-restock="${p.id}">Restock</button> `:''}${can('editItems')?`<button class="small" data-editprod="${p.id}">Edit</button>`:''}</td></tr>`;}).join('') || `<tr><td colspan="9"><div class="empty">${list(S.products).length?'No items match.':'No items yet. Add your first appliance.'}</div></td></tr>`}
   </tbody></table></section>`;
+}
+function moveRow(m, showItem){
+  const [cls, label] = MOVE[m.type] || ['plain', m.type];
+  const qty = Number(m.qty)||0;
+  const ref = [m.receipt ? `Receipt <b class="mono">${esc(m.receipt)}</b>` : '', m.supplier ? esc(m.supplier) : '', m.note ? esc(m.note) : '', (m.removedSerials||[]).length ? 'Removed S/N ' + esc(m.removedSerials.join(', ')) : ''].filter(Boolean).join(' · ');
+  return `<tr><td style="white-space:nowrap">${fmtDT(m.at)}${m.enteredAt && Math.abs(new Date(m.enteredAt) - new Date(m.at)) > 300000 ? `<br><span class="sub">entered ${fmtDT(m.enteredAt)}</span>` : ''}</td>
+    ${showItem?`<td><b>${esc(m.productName)}</b></td>`:''}<td><span class="pill ${cls}">${label}</span></td>
+    <td class="r num" style="font-weight:600;color:${qty>0?'var(--good)':qty<0?'var(--ink)':'var(--muted)'}">${qty>0?'+':''}${qty}</td>
+    <td class="mono" style="font-size:12px;max-width:220px">${esc((m.serials||[]).join(', '))||'<span class="sub">–</span>'}</td>
+    <td>${esc(staffName(m.by))||'<span class="sub">–</span>'}</td><td class="sub" style="max-width:240px">${ref}</td></tr>`;
+}
+function stockMoves(viewSeg){
+  const q = ui.moveQ.trim().toLowerCase();
+  const rows = list(S.stockLog).filter(m => !q || [m.productName, ...(m.serials||[]), m.receipt, m.supplier, staffName(m.by), (MOVE[m.type]||[])[1]].join(' ').toLowerCase().includes(q)).sort((a,b)=>b.at.localeCompare(a.at));
+  const inQ = rows.filter(m=>m.qty>0).reduce((a,m)=>a+m.qty,0), outQ = rows.filter(m=>m.qty<0).reduce((a,m)=>a-m.qty,0);
+  return head('Stock', viewSeg + searchBox('moveQ','Item, serial, receipt, supplier or staff', ui.moveQ)) + `
+  <div class="bar"><span class="sub">${rows.length} movements · ${inQ} units in · ${outQ} units out</span></div>
+  <section class="card tcard tw"><table><thead><tr><th>When</th><th>Item</th><th>Movement</th><th class="r">Units</th><th>Serial numbers</th><th>By</th><th>Details</th></tr></thead><tbody>
+  ${rows.slice(0,500).map(m=>moveRow(m,true)).join('') || `<tr><td colspan="7"><div class="empty">No stock movements yet. Adding items, restocking, sales and returns are all recorded here with the time and who did it.</div></td></tr>`}
+  </tbody></table></section>`;
+}
+function stockHistory(id){
+  const p = S.products[id]; if (!p) return;
+  const dates = serialDatesOf(p);
+  const shelf = serialsOf(p).map(sn => ({ sn, at: dates[sn] })).sort((a,b)=>(a.at||'').localeCompare(b.at||''));
+  const moves = list(S.stockLog).filter(m=>m.productId===id).sort((a,b)=>b.at.localeCompare(a.at));
+  const noSerial = Math.max(0, (p.stock||0) - shelf.length);
+  modal(mhead(esc(p.brand)+' '+esc(p.name)) + `
+    <div class="figs"><div><span class="kicker">On shelf</span><b>${p.stock}</b></div><div><span class="kicker">Added</span><b>${p.createdAt?fmtShort(p.createdAt):'–'}</b></div><div><span class="kicker">Last received</span><b>${p.lastReceivedAt?fmtShort(p.lastReceivedAt):'–'}</b></div></div>
+    <div><span class="kicker">On the shelf now</span>
+      ${shelf.length || noSerial ? `<div class="sched">${shelf.map(x=>`<div class="s"><span class="mono">${esc(x.sn)}</span><span class="sub">${x.at?'received '+fmtDT(x.at):'received date not recorded'}</span><span class="pill ${x.at && daysSince(x.at)>90?'warn':'plain'}">${x.at?daysSince(x.at)+' days in stock':'–'}</span></div>`).join('')}${noSerial?`<div class="s"><span>${noSerial} without serial numbers</span><span></span><span></span></div>`:''}</div>` : '<p class="sub" style="margin:6px 0 0">None on the shelf.</p>'}
+    </div>
+    <div class="stack" style="gap:8px"><span class="kicker">Stock history</span>
+      <div class="tw"><table><thead><tr><th>When</th><th>Movement</th><th class="r">Units</th><th>Serials</th><th>By</th><th>Details</th></tr></thead><tbody>
+      ${moves.map(m=>moveRow(m,false)).join('') || '<tr><td colspan="6"><div class="empty">No movements recorded yet.</div></td></tr>'}</tbody></table></div></div>
+    ${shelf.length?`<div class="bar"><span class="sub">Edit the item to correct a serial.</span><button data-copy="snList">Copy serial list</button></div><div id="snList" hidden>${esc(serialsOf(p).join('\n'))}</div>`:''}`);
+  $('#modalRoot .modal').style.maxWidth = '820px';
 }
 
 /* ================= Installments ================= */
@@ -800,6 +848,7 @@ function warranty(){
     return `<article class="card wcard">
       <div class="wtop"><span class="glyph">${glyph(prod?.category)}</span><div class="who"><b>${esc(x.i.name)}</b><div class="sub mono">${x.serial?'S/N '+esc(x.serial):'No serial recorded'}</div></div><span class="pill ${w.cls}">${w.label}</span></div>
       <div class="meterw ${w.exp?'exp':''}"><i style="width:${w.pct}%"></i></div>
+      ${x.i.received && x.i.received[x.serial] ? `<div class="sub">Received ${fmtDT(x.i.received[x.serial])} · sold ${fmtDT(x.s.date)}</div>` : `<div class="sub">Sold ${fmtDT(x.s.date)}</div>`}
       <div class="figs"><div><span class="kicker">Sold</span><b>${fmtShort(x.s.date)}</b></div><div><span class="kicker">Covered to</span><b>${x.i.warrantyMonths?fmtShort(w.end):'No cover'}</b></div><div><span class="kicker">Receipt</span><b class="mono" style="font-size:13px">${esc(x.s.receipt)}</b></div></div>
       <div class="person" style="padding:0;border:0">${avatar(x.s.customerId)}<div class="who"><b>${esc(custName(x.s.customerId))}</b><span class="sub mono">${esc(S.customers[x.s.customerId]?.phone||'')}</span></div></div>
       ${claimsFor.length?`<div class="sub">${claimsFor.length} claim${claimsFor.length===1?'':'s'} logged · latest ${fmtShort(claimsFor.sort((a,b)=>b.date.localeCompare(a.date))[0].date)}</div>`:''}
@@ -1031,7 +1080,9 @@ function returnForm(id){
       if (restock) { const byP = {}; chosen.forEach(x => { const pid = s.items[x.ix].productId; (byP[pid] ||= []).push(x); });
         for (const pid of Object.keys(byP)) { const L = await withLock(pid); if (!L.data) continue;
           const back = byP[pid].map(x=>x.serial).filter(sn => sn && !serialsOf(L.data).includes(sn));
-          await L.ref.update({ stock: (L.data.stock||0) + byP[pid].length, serials: [...serialsOf(L.data), ...back] }); } }
+          const dates = { ...serialDatesOf(L.data) }; back.forEach(sn => { dates[sn] = entry.at; });
+          await L.ref.update({ stock: (L.data.stock||0) + byP[pid].length, serials: [...serialsOf(L.data), ...back], serialDates: dates });
+          await logStock({ type:'returned', at: entry.at, productId:pid, productName:s.items[byP[pid][0].ix].name, qty:byP[pid].length, serials:back, saleId:id, receipt:s.receipt, note: $('#rt_reason').selectedOptions[0]?.textContent || '' }); } }
       if (isPlan && plan) await db.collection('plans').doc(plan.id).update({ cancelled: true, cancelledAt: todayISO() });
     }, 'Return recorded');
     if (ok) { closeModal(); render(); setTimeout(()=>showReceipt(id), 200); }
@@ -1046,7 +1097,7 @@ function claimForm(saleId, ix, serial){
     <label for="cl_note" class="full">Problem<textarea id="cl_note" rows="3" required placeholder="For example: not cooling, compressor noisy"></textarea></label>
   </div><button class="primary" type="submit">Save claim</button></form>`);
   $('#clForm').addEventListener('submit', async e => { e.preventDefault(); const ref = db.collection('claims').doc();
-    const ok = await write(()=>ref.set({ id:ref.id, saleId, itemIndex:ix, serial, productName:i.name, customerId:s.customerId||'', date: $('#cl_date').value || todayISO(), type: $('#cl_type').value, note: $('#cl_note').value.trim(), status:'open', staffId: meObj()?.id||'' }), 'Claim logged');
+    const ok = await write(()=>ref.set({ id:ref.id, saleId, itemIndex:ix, serial, productName:i.name, customerId:s.customerId||'', date: $('#cl_date').value || todayISO(), type: $('#cl_type').value, note: $('#cl_note').value.trim(), status:'open', staffId: meObj()?.id||'', loggedAt: nowISO() }), 'Claim logged');
     if (ok) closeModal(); });
 }
 function resolveForm(id){
@@ -1055,7 +1106,7 @@ function resolveForm(id){
   <form id="rsvForm" class="stack" style="gap:16px"><label for="rv_out">What was done<textarea id="rv_out" rows="3" required placeholder="For example: replaced thermostat, returned to customer"></textarea></label>
   <button class="primary" type="submit">Mark resolved</button></form>`);
   $('#rsvForm').addEventListener('submit', async e => { e.preventDefault();
-    if (await write(()=>db.collection('claims').doc(id).update({ status:'done', outcome: $('#rv_out').value.trim(), resolvedAt: todayISO(), resolvedBy: meObj()?.id||'' }), 'Claim resolved')) closeModal(); });
+    if (await write(()=>db.collection('claims').doc(id).update({ status:'done', outcome: $('#rv_out').value.trim(), resolvedAt: todayISO(), resolvedAtTime: nowISO(), resolvedBy: meObj()?.id||'' }), 'Claim resolved')) closeModal(); });
 }
 function closeDayForm(){
   const t = todayISO(), f = flow(t, t), prev = S.closes[t];
@@ -1092,6 +1143,9 @@ function productForm(id){
     <label for="pf_reorder">Reorder when at<input id="pf_reorder" type="number" min="0" value="${esc(p.reorderAt ?? 2)}"></label>
     <label for="pf_energy" class="full">Energy rating<select id="pf_energy"><option value="">Not rated</option>${'ABCDEFG'.split('').map(l=>`<option ${p.energy===l?'selected':''}>${l}</option>`).join('')}</select></label>
     <label for="pf_serials" class="full">Serial numbers on the shelf, one per line<textarea id="pf_serials" rows="4" class="mono" placeholder="HSR34-77901&#10;HSR34-77902">${esc(serialsOf(p).join('\n'))}</textarea><span class="sub" style="font-weight:400">When serials are listed, the shelf count is the number of serials.</span></label>
+    ${id ? `<p class="sub full" style="margin:0">Added ${p.createdAt?fmtDT(p.createdAt):'before dates were recorded'}${p.lastReceivedAt?' · last received '+fmtDT(p.lastReceivedAt):''}. Changes to the shelf count or serials here are saved in the item’s stock history with the time and your name.</p>`
+      : `<label for="pf_at">Date and time received<input id="pf_at" type="datetime-local" value="${localDT()}" max="${localDT()}" required></label>
+    <label for="pf_sup">Supplier or invoice (optional)<input id="pf_sup" placeholder="For example Melcom, INV-2231"></label>`}
   </div><span class="err" id="pfErr" role="alert"></span><div class="bar">${id&&can('deleteItems')?`<button type="button" class="small" data-delprod="${id}">Delete item</button>`:'<span></span>'}<button class="primary" type="submit">Save item</button></div></form>`);
   $('#prodForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -1100,7 +1154,24 @@ function productForm(id){
     const clash = serials.find(sn => serialOwner(sn, id));
     if (clash) { const o = serialOwner(clash, id); $('#pfErr').textContent = 'Serial '+clash+' is already on '+o.brand+' '+o.name+'.'; return; }
     const data = { brand:g('brand'), name:g('name'), category:g('cat'), cost:Number(g('cost')), price:Number(g('price')), stock: serials.length || (parseInt(g('stock'))||0), serials, reorderAt:parseInt(g('reorder'))||0, warrantyMonths:parseInt(g('war'))||0, energy:$('#pf_energy').value };
-    const ok = await write(async ()=>{ if (id) { const L = await withLock(id); await L.ref.update(data); } else { const ref = db.collection('products').doc(); await ref.set({ id: ref.id, ...data }); } }, 'Item saved');
+    const name = data.brand + ' ' + data.name;
+    const ok = await write(async ()=>{
+      if (id) {
+        const L = await withLock(id); const cur = L.data || {};
+        const before = serialsOf(cur), dates = { ...serialDatesOf(cur) }, t = nowISO();
+        const added = serials.filter(sn => !before.includes(sn)), removed = before.filter(sn => !serials.includes(sn));
+        added.forEach(sn => { dates[sn] = t; }); removed.forEach(sn => { delete dates[sn]; });
+        await L.ref.update({ ...data, serialDates: dates, updatedAt: t, updatedBy: meObj()?.id || '' });
+        const delta = data.stock - (cur.stock || 0);
+        const notes = []; if (Number(cur.price) !== data.price) notes.push(`Price ${plain(cur.price)} → ${plain(data.price)}`); if (Number(cur.cost) !== data.cost) notes.push(`Cost ${plain(cur.cost)} → ${plain(data.cost)}`);
+        if (delta || added.length || removed.length || notes.length) await logStock({ type:'adjusted', productId:id, productName:name, qty:delta, serials:added, removedSerials:removed, note: notes.join(' · ') });
+      } else {
+        const ref = db.collection('products').doc(); const at = fromLocal($('#pf_at').value); const sup = $('#pf_sup').value.trim();
+        const dates = {}; serials.forEach(sn => { dates[sn] = at; });
+        await ref.set({ id: ref.id, ...data, serialDates: dates, createdAt: nowISO(), createdBy: meObj()?.id || '', lastReceivedAt: data.stock ? at : null });
+        await logStock({ type:'added', at, productId:ref.id, productName:name, qty:data.stock, serials, cost:data.cost, supplier:sup });
+      }
+    }, 'Item saved');
     if (ok) closeModal();
   });
 }
@@ -1108,7 +1179,7 @@ function confirmDelete(id){
   const p = S.products[id];
   modal(`<h2>Delete ${esc(p.brand)} ${esc(p.name)}?</h2><p class="muted" style="margin:0">Past sales and warranty records keep their details. This only removes the item from stock.</p>
     <div class="bar"><button data-close>Keep it</button><button class="primary" style="background:var(--bad);border-color:var(--bad)" id="doDel">Delete item</button></div>`);
-  $('#doDel').onclick = async () => { if (await write(()=>db.collection('products').doc(id).delete(), 'Item deleted')) closeModal(); };
+  $('#doDel').onclick = async () => { if (await write(async ()=>{ await db.collection('products').doc(id).delete(); await logStock({ type:'deleted', productId:id, productName:p.brand+' '+p.name, qty:-(p.stock||0), serials:serialsOf(p) }); }, 'Item deleted')) closeModal(); };
 }
 function restockForm(id){
   const p = S.products[id];
@@ -1116,7 +1187,9 @@ function restockForm(id){
     <form id="rsForm" class="stack" style="gap:18px"><div class="fields">
     <label for="rs_serials" class="full">Serial numbers received, one per line<textarea id="rs_serials" rows="5" class="mono" placeholder="Type or scan each serial"></textarea></label>
     <label for="rs_qty">Units without serials<input id="rs_qty" type="number" min="0" value="0"></label>
-    <label for="rs_cost">Cost per unit<input id="rs_cost" type="number" min="0" step="0.01" value="${esc(p.cost)}"></label></div>
+    <label for="rs_cost">Cost per unit<input id="rs_cost" type="number" min="0" step="0.01" value="${esc(p.cost)}"></label>
+    <label for="rs_at">Date and time received<input id="rs_at" type="datetime-local" value="${localDT()}" max="${localDT()}" required></label>
+    <label for="rs_sup">Supplier or invoice (optional)<input id="rs_sup" placeholder="For example Melcom, INV-2231"></label></div>
     <span class="err" id="rsErr" role="alert"></span><button class="primary" type="submit">Add to stock</button></form>`);
   $('#rsForm').addEventListener('submit', async e => { e.preventDefault();
     const fresh = parseSerials($('#rs_serials').value); const extra = parseInt($('#rs_qty').value)||0; const q = fresh.length + extra; const c = Number($('#rs_cost').value)||p.cost;
@@ -1124,14 +1197,11 @@ function restockForm(id){
     if (!q) { $('#rsErr').textContent = 'Enter the serial numbers or a number of units.'; return; }
     const ok = await write(async () => { const L = await withLock(id); const cur = L.data;
       const dup = fresh.find(sn => serialsOf(cur).includes(sn)); if (dup) throw { code:'stale', message:'Serial '+dup+' is already on the shelf.' };
-      await L.ref.update({ stock:(cur.stock||0)+q, serials:[...serialsOf(cur), ...fresh], cost:c }); }, q+(q===1?' unit':' units')+' added');
+      const at = fromLocal($('#rs_at').value); const dates = { ...serialDatesOf(cur) }; fresh.forEach(sn => { dates[sn] = at; });
+      const last = cur.lastReceivedAt && cur.lastReceivedAt > at ? cur.lastReceivedAt : at;
+      await L.ref.update({ stock:(cur.stock||0)+q, serials:[...serialsOf(cur), ...fresh], serialDates: dates, cost:c, lastReceivedAt: last });
+      await logStock({ type:'received', at, productId:id, productName:cur.brand+' '+cur.name, qty:q, serials:fresh, cost:c, supplier: $('#rs_sup').value.trim() }); }, q+(q===1?' unit':' units')+' added');
     if (ok) closeModal(); });
-}
-function serialList(id){
-  const p = S.products[id];
-  modal(mhead('Serials on the shelf') + `<div class="itemcell"><span class="glyph">${glyph(p.category)}</span><span><b>${esc(p.brand)} ${esc(p.name)}</b><br><span class="sub">${serialsOf(p).length} with serials · ${p.stock} on shelf</span></span></div>
-    <div class="printed" id="snList">${esc(serialsOf(p).join('\n'))}</div>
-    <div class="bar"><span class="sub">Edit the item to correct a serial.</span><button data-copy="snList">Copy list</button></div>`);
 }
 function customerForm(from){
   modal(mhead('Add customer','Cancel') + `
@@ -1142,7 +1212,7 @@ function customerForm(from){
     <label for="cf_id" class="full">ID number (for installment buyers)<input id="cf_id" placeholder="Ghana Card or other ID"></label>
   </div><button class="primary" type="submit">Save customer</button></form>`);
   $('#custForm').addEventListener('submit', async e => { e.preventDefault(); const ref = db.collection('customers').doc();
-    const ok = await write(()=>ref.set({ id:ref.id, name:$('#cf_name').value.trim(), phone:$('#cf_phone').value.trim(), area:$('#cf_area').value.trim(), idNumber:$('#cf_id').value.trim(), createdAt: todayISO() }), 'Customer added');
+    const ok = await write(()=>ref.set({ id:ref.id, name:$('#cf_name').value.trim(), phone:$('#cf_phone').value.trim(), area:$('#cf_area').value.trim(), idNumber:$('#cf_id').value.trim(), createdAt: nowISO(), createdBy: meObj()?.id || '' }), 'Customer added');
     if (ok){ if (from==='sell') cart.customerId = ref.id; closeModal(); render(); } });
 }
 function payForm(id){
@@ -1158,7 +1228,7 @@ function payForm(id){
   $('#payForm').addEventListener('submit', async e => { e.preventDefault(); const amt = round2(Number($('#py_amt').value));
     if (!(amt>0) || amt > st.balance+0.01) { $('#pyErr').textContent = 'Enter an amount up to the balance of '+plain(st.balance)+'.'; return; }
     const ok = await write(async () => { const fresh = (await db.collection('plans').doc(id).get()).data() || S.plans[id];
-      await db.collection('plans').doc(id).update({ payments: [...(fresh.payments||[]), { date: todayISO(), amount: amt, method: $('#py_m').value, staffId: meObj()?.id||'' }] }); }, 'Payment recorded');
+      await db.collection('plans').doc(id).update({ payments: [...(fresh.payments||[]), { date: todayISO(), at: nowISO(), amount: amt, method: $('#py_m').value, staffId: meObj()?.id||'' }] }); }, 'Payment recorded');
     if (ok) closeModal(); });
 }
 function reminderText(p){
@@ -1179,7 +1249,7 @@ function planDetail(id){
       <div class="s"><span>${fmtD(p.startDate)} · deposit</span><span class="num">${money(p.deposit)}</span><span class="pill good">Paid</span></div>
       ${scheduleStates(p).map(x=>`<div class="s"><span>${fmtD(x.due)}</span><span class="num">${money(p.instalment)}</span><span class="pill ${lab[x.s][0]}">${lab[x.s][1]}</span></div>`).join('')}
     </div>
-    <div><span class="kicker">Payments received</span><div class="sched">${(p.payments||[]).map(x=>`<div class="s"><span>${fmtD(x.date)} · ${PAYM[x.method]||x.method}${x.deposit?' · deposit':''}${x.staffId?' · '+esc(staffName(x.staffId)):''}</span><b class="num">${money(x.amount)}</b></div>`).join('')}</div></div>
+    <div><span class="kicker">Payments received</span><div class="sched">${(p.payments||[]).map(x=>`<div class="s"><span>${x.at ? fmtDT(x.at) : fmtD(x.date)} · ${PAYM[x.method]||x.method}${x.deposit?' · deposit':''}${x.staffId?' · '+esc(staffName(x.staffId)):''}</span><b class="num">${money(x.amount)}</b></div>`).join('')}</div></div>
     ${live?`<div class="stack" style="gap:10px"><span class="kicker">Reminder message</span><div class="printed" id="remTxt">${esc(reminderText(p))}</div>
     <div class="bar"><span class="sub mono">${esc(ph)}</span><span style="display:flex;gap:8px">${waBtn(ph, reminderText(p))}<button data-copy="remTxt">Copy</button></span></div></div>`:''}
     ${live&&can('pay')?`<button class="go" data-pay="${p.id}" style="padding:14px">Take payment</button>`:''}`);
@@ -1187,7 +1257,7 @@ function planDetail(id){
 function customerDetail(id){
   const c = S.customers[id];
   const ss = list(S.sales).filter(s=>s.customerId===id).sort((a,b)=>b.date.localeCompare(a.date));
-  modal(mhead(esc(c.name)) + `<div class="person" style="padding:0;border:0">${avatar(id)}<div class="who"><span class="mono">${esc(c.phone)}</span><span class="sub" style="display:block">${esc(c.area||'')}${c.idNumber?' · ID '+esc(c.idNumber):''} · since ${fmtD(c.createdAt)}</span></div>${waBtn(c.phone, 'Hello ' + c.name.split(' ')[0] + ', this is ' + S.settings.name + '. ')}</div>
+  modal(mhead(esc(c.name)) + `<div class="person" style="padding:0;border:0">${avatar(id)}<div class="who"><span class="mono">${esc(c.phone)}</span><span class="sub" style="display:block">${esc(c.area||'')}${c.idNumber?' · ID '+esc(c.idNumber):''} · added ${c.createdAt && c.createdAt.length>10 ? fmtDT(c.createdAt) : fmtD(c.createdAt)}</span></div>${waBtn(c.phone, 'Hello ' + c.name.split(' ')[0] + ', this is ' + S.settings.name + '. ')}</div>
     <div class="people">${ss.map(s=>`<div class="person"><div class="who"><b>${esc(s.items.map(i=>i.name).join(', '))}</b><span class="sub">${fmtDT(s.date)} · ${METHODS[s.method]}${s.items.some(i=>unitSerials(i).length)?' · S/N '+esc(s.items.flatMap(unitSerials).join(', ')):''}</span></div>${retPill(s)}<button class="small" data-receipt="${s.id}">${money(s.total)}</button></div>`).join('') || '<div class="empty">No purchases yet.</div>'}</div>`);
 }
 function serialForm(){
@@ -1229,13 +1299,16 @@ async function completeSale(){
     }
     const sref = db.collection('sales').doc(); saleId = sref.id;
     const sale = { id:sref.id, receipt:'R-' + Date.now().toString(36).slice(-6).toUpperCase(), date:new Date().toISOString(), customerId:cart.customerId||'', method:cart.method, subtotal:sub, discount:disc, discountNote: disc ? cart.discNote.trim() : '', total, staffId,
-      items: items.map(i=>({ productId:i.productId, name:i.name, qty:i.qty, price:i.price, cost: Number(locked[i.productId].data.cost||0), serials:i.serials||[], serial:(i.serials||[]).join(', '), warrantyMonths:i.warrantyMonths||0 })) };
+      items: items.map(i=>{ const sd = serialDatesOf(locked[i.productId].data); const rec = {}; (i.serials||[]).forEach(sn => { if (sd[sn]) rec[sn] = sd[sn]; });
+        return { productId:i.productId, name:i.name, qty:i.qty, price:i.price, cost: Number(locked[i.productId].data.cost||0), serials:i.serials||[], serial:(i.serials||[]).join(', '), received: rec, warrantyMonths:i.warrantyMonths||0 }; }) };
     let pref = null;
     if (cart.method==='installment'){ pref = db.collection('plans').doc(); sale.deposit = round2(Number(cart.deposit)||0); sale.depositMethod = cart.depositMethod; sale.planId = pref.id; }
     await sref.set(sale);
-    if (pref) { const dep = sale.deposit; await pref.set({ id:pref.id, saleId:sref.id, customerId:cart.customerId, productName: items.map(i=>i.name).join(', '), total, deposit:dep, count:cart.count, freq:cart.freq, instalment: round2((total-dep)/cart.count), startDate: todayISO(), payments: dep>0?[{ date:todayISO(), amount:dep, method:cart.depositMethod, deposit:true, staffId }]:[] }); }
+    if (pref) { const dep = sale.deposit; await pref.set({ id:pref.id, saleId:sref.id, customerId:cart.customerId, productName: items.map(i=>i.name).join(', '), total, deposit:dep, count:cart.count, freq:cart.freq, instalment: round2((total-dep)/cart.count), startDate: todayISO(), payments: dep>0?[{ date:todayISO(), amount:dep, method:cart.depositMethod, deposit:true, staffId, at: sale.date }]:[], createdAt: sale.date }); }
     for (const pid of Object.keys(locked)) { const { ref, data } = locked[pid]; const sold = byProd[pid].flatMap(i=>i.serials||[]); const qty = byProd[pid].reduce((a,i)=>a+i.qty,0);
-      await ref.update({ stock: Math.max(0,(data.stock||0)-qty), serials: serialsOf(data).filter(sn=>!sold.includes(sn)) }); }
+      const dates = { ...serialDatesOf(data) }; sold.forEach(sn => { delete dates[sn]; });
+      await ref.update({ stock: Math.max(0,(data.stock||0)-qty), serials: serialsOf(data).filter(sn=>!sold.includes(sn)), serialDates: dates, lastSoldAt: sale.date });
+      await logStock({ type:'sold', at: sale.date, productId:pid, productName:byProd[pid][0].name, qty:-qty, serials:sold, saleId:sref.id, receipt:sale.receipt, price:byProd[pid][0].price }); }
   }, 'Sale recorded');
   if (!ok) return;
   Object.assign(cart, freshCart());
@@ -1267,7 +1340,8 @@ document.addEventListener('click', async e => {
   if ('editprod' in d) return productForm(d.editprod);
   if (d.delprod) return confirmDelete(d.delprod);
   if (d.restock) return restockForm(d.restock);
-  if (d.serials) return serialList(d.serials);
+  if (d.serials || d.history) return stockHistory(d.serials || d.history);
+  if (d.sview){ ui.stockView = d.sview; return render(); }
   if (d.pay) return payForm(d.pay);
   if (d.plan) return planDetail(d.plan);
   if (d.cust) return customerDetail(d.cust);
@@ -1297,9 +1371,9 @@ document.addEventListener('submit', async e => {
 document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
 let qTimer;
 const refocus = id => { const el = document.getElementById(id); if (el){ el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch(x){} } };
-const TYPING = ['sellQ','stockQ','custQ','saleQ','wQ','cartDep','cartCount','discVal','discNote'];
+const TYPING = ['moveQ','sellQ','stockQ','custQ','saleQ','wQ','cartDep','cartCount','discVal','discNote'];
 document.addEventListener('input', e => {
-  const id = e.target.id, map = { sellQ:'q', stockQ:'q', custQ:'custQ', saleQ:'saleQ', wQ:'wq' };
+  const id = e.target.id, map = { moveQ:'moveQ', sellQ:'q', stockQ:'q', custQ:'custQ', saleQ:'saleQ', wQ:'wq' };
   if (map[id]){ clearTimeout(qTimer); qTimer = setTimeout(()=>{ ui[map[id]] = e.target.value;
       if (id==='sellQ'){ const sn = e.target.value.trim().toUpperCase(); const p = sn && serialOwner(sn);
         if (p && p.stock>0 && can('sell')){ const ex = cart.items.find(i=>i.productId===p.id);
