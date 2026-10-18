@@ -919,11 +919,25 @@ function settings(){
     </section>
   </div>
   <div class="cols">
+    ${can('staff') && sampleCount() ? `<section class="card"><div class="cardhead"><h3>Sample records</h3></div>
+      <p class="sub" style="margin:0 0 14px">${sampleCount()} sample records from the prototype are in this shop: example appliances, customers, sales and installment plans. Removing them leaves everything you added untouched.</p>
+      <button data-rmsamples>Remove sample records</button></section>` : ''}
     <section class="card"><div class="cardhead"><h3>My login</h3></div>
       <p class="sub" style="margin:0 0 14px">Signed in as <b class="mono">${esc(meObj()?.username||'')}</b>. This device stays signed in for 30 days. Add the app to the home screen from your browser’s menu to open it like an app.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button data-changepw>Change my password</button><button data-signout>Sign out</button></div>
     </section>
   </div>`;
+}
+const SAMPLE_IDS = { products:['p01','p02','p03','p04','p05','p06','p07','p08','p09','p10','p11'], customers:['c1','c2','c3','c4','c5','c6'], sales:['s1','s2','s3','s4','s5','s6','s7','s8','s9','s10'], plans:['pl1','pl2','pl3','pl4','pl5'] };
+const sampleCount = () => Object.entries(SAMPLE_IDS).reduce((n,[c,ids]) => n + ids.filter(id => S[c]?.[id]).length, 0);
+function removeSamplesForm(){
+  modal(mhead('Remove sample records','Cancel') + `<p style="margin:0">This deletes the ${sampleCount()} example appliances, customers, sales and installment plans that came with the prototype.</p>
+    <p class="muted" style="margin:0">Items, customers and sales you added yourself stay exactly as they are. This cannot be undone.</p>
+    <span class="err" id="rmErr" role="alert"></span>
+    <div class="bar"><button data-close>Keep them</button><button class="primary" style="background:var(--bad);border-color:var(--bad)" id="doRm">Remove sample records</button></div>`);
+  $('#doRm').onclick = async () => { $('#doRm').disabled = true;
+    try { const j = await db.removeSamples(); closeModal(); toast(j.removed ? 'Sample records removed' : 'No sample records were left'); render(); }
+    catch(x){ $('#rmErr').textContent = x.message || 'Could not remove them.'; $('#doRm').disabled = false; } };
 }
 function staffForm(id){
   const p = id ? S.staff[id] : { name:'', username:'', role:'sales', maxDiscount:5, active:true };
@@ -1267,6 +1281,7 @@ document.addEventListener('click', async e => {
   if ('retry' in d) return boot();
   if ('signout' in d){ API.setToken(null); setMe(null); signedOut(); BOOT.msg = ''; closeModal(); return render(); }
   if ('changepw' in d) return passwordForm();
+  if ('rmsamples' in d) return removeSamplesForm();
   if (d.copy){ const el = document.getElementById(d.copy); const txt = el.textContent;
     try { await navigator.clipboard.writeText(txt); toast('Copied'); }
     catch(x){ const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Text selected. Copy it with your device.'); }
@@ -1352,6 +1367,7 @@ function makeStore(){
     collection: col => ({ path: col, doc: id => docRef(col, id || newId()),
       onSnapshot(next, err){ const l = { col, run: () => next({ docs: Object.entries(data[col]||{}).map(([id,d]) => snap(id, d)) }) }; listeners.push(l); if (first) l.run(); return () => listeners.splice(listeners.indexOf(l), 1); } }),
     doc: path => { const [c, i] = path.split('/'); return docRef(c, i); },
+    async removeSamples(){ const j = await API.call('remove-samples', {}); apply(j.docs); fire(); return j; },
     async users(payload){ const j = await API.call('users', payload); apply(j.docs); fire(new Set(['staff'])); return j; },
     async start(){ await pull(); loop(); },
     stop(){ stopped = true; clearTimeout(timer); },

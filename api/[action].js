@@ -45,6 +45,9 @@ async function activeOwners(exceptId) {
   return r[0].n;
 }
 
+// The records the prototype's sample box used to load. Removing them never touches anything added since.
+const SAMPLE_IDS = {"plans": ["pl1", "pl2", "pl3", "pl4", "pl5"], "sales": ["s1", "s10", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"], "customers": ["c1", "c2", "c3", "c4", "c5", "c6"], "products": ["p01", "p02", "p03", "p04", "p05", "p06", "p07", "p08", "p09", "p10", "p11"]};
+
 const SET = `insert into shop_docs (col, id, data, deleted, rev, updated_at) values ($1, $2, $3::jsonb, false, nextval('shop_rev'), now())
   on conflict (col, id) do update set data = excluded.data, deleted = false, rev = excluded.rev, updated_at = now()
   returning col, id, data, deleted, rev`;
@@ -52,6 +55,9 @@ const UPDATE = `update shop_docs set data = data || $3::jsonb, rev = nextval('sh
   where col = $1 and id = $2 and not deleted returning col, id, data, deleted, rev`;
 const DELETE = `update shop_docs set deleted = true, data = null, rev = nextval('shop_rev'), updated_at = now()
   where col = $1 and id = $2 returning col, id, data, deleted, rev`;
+
+const DELETE_LIVE = `update shop_docs set deleted = true, data = null, rev = nextval('shop_rev'), updated_at = now()
+  where col = $1 and id = $2 and not deleted returning col, id, data, deleted, rev`;
 
 const actions = {
   async status() {
@@ -135,6 +141,16 @@ const actions = {
     throw new HttpError(400, 'invalid_argument', 'Unknown staff change.');
   },
 
+  // Owner only: delete the prototype's sample records if they were loaded at setup.
+  async 'remove-samples'(req) {
+    await requireAuth(req, 'owner');
+    const ops = Object.entries(SAMPLE_IDS).flatMap(([col, ids]) => ids.map(id => [DELETE_LIVE, [col, id]]));
+    const out = (await tx(ops)).flat();
+    const settings = await q(`select data from shop_docs where col = 'settings' and id = 'shop' and not deleted`);
+    if (settings[0]?.data?.name === 'Home Appliances (sample data)') out.push(...await q(UPDATE, ['settings', 'shop', JSON.stringify({ name: 'Home Appliances' })]));
+    return { docs: out.map(rowOut), removed: out.length };
+  },
+
   async sync(req) {
     await requireAuth(req);
     const since = Math.max(0, Number(req.query.since) || 0);
@@ -185,7 +201,7 @@ const actions = {
     return { acquired: rows.length === 1 && rows[0].holder === holder };
   },
 };
-const POST_ONLY = new Set(['setup', 'login', 'password', 'users', 'write', 'lock']);
+const POST_ONLY = new Set(['setup', 'login', 'password', 'users', 'remove-samples', 'write', 'lock']);
 
 export default async function handler(req, res) {
   const name = String(req.query.action || '');
