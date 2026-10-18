@@ -585,7 +585,7 @@ function periodRange(p){
 function navBtn(k, label, extra=''){ const od = k==='plans' ? overdueCount() : 0;
   return `<button data-tab="${k}" aria-current="${tab===k?'page':'false'}">${IC[k]}<span>${label}</span>${od?`<span class="count">${od}</span>`:''}${extra}</button>`; }
 function renderNav(){
-  if (db && Object.values(ready).every(Boolean) && staffMode() && !meObj()) { $('#sideNav').innerHTML=''; $('#tabBar').innerHTML=''; $('#tillV').textContent='Locked'; $('#tillS').textContent='Sign in to see today’s takings'; $('#onTill').innerHTML=''; $('#mobileRight').innerHTML=''; const n=S.settings.name||'Home Appliances'; $('#shopName').textContent=n; $('#shopNameM').textContent=n; return; }
+  if (!db || (Object.values(ready).every(Boolean) && staffMode() && !meObj())) { $('#sideNav').innerHTML=''; $('#tabBar').innerHTML=''; $('#tillV').textContent='Locked'; $('#tillS').textContent=db?'Sign in to see today’s takings':'Sign in to the till'; $('#onTill').innerHTML=''; $('#mobileRight').innerHTML=''; const n=S.settings.name||'Home Appliances'; $('#shopName').textContent=n; $('#shopNameM').textContent=n; return; }
   const vis = TABS.filter(([k,,r]) => rank() >= r || !staffMode() && r<=9);
   $('#sideNav').innerHTML = vis.map(([k,l])=>navBtn(k,l)).join('');
   const moreOn = !MOBILE.includes(tab);
