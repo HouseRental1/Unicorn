@@ -43,6 +43,9 @@ export async function ensureSchema() {
     role text not null,
     active boolean not null default true,
     created_at timestamptz not null default now())`);
+  // One-time rename: shops still on a placeholder name become Unicorn Home Appliances.
+  await q(`update shop_docs set data = data || '{"name":"Unicorn Home Appliances"}'::jsonb, rev = nextval('shop_rev'), updated_at = now()
+    where col = 'settings' and id = 'shop' and not deleted and data->>'name' in ('Home Appliances', 'Home Appliances (sample data)')`);
   schemaReady = true;
 }
 

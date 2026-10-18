@@ -1,6 +1,6 @@
-# Appliance Shop Till
+# Unicorn Home Appliances
 
-A shop till for a home appliances store: sales with discounts and serial numbers, stock, installment plans, warranty claims, returns and refunds, staff PINs, day close and reports. It runs on Vercel, with the data in a Neon Postgres database connected through Vercel.
+The shop till for Unicorn Home Appliances: sales with discounts and serial numbers, stock, installment plans, warranty claims, returns and refunds, staff PINs, day close and reports. It runs on Vercel, with the data in a Neon Postgres database connected through Vercel.
 
 ## How it is built
 

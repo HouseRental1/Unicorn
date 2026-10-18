@@ -1,13 +1,13 @@
 {
-  "name": "Appliance Shop Till",
-  "short_name": "Shop Till",
+  "name": "Unicorn Home Appliances",
+  "short_name": "Unicorn",
   "description": "Sales, stock, installments and warranty for a home appliances shop",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#e9efed",
-  "theme_color": "#0e3a38",
+  "background_color": "#fbf4f6",
+  "theme_color": "#b3184d",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },

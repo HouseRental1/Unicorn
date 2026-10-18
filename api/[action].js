@@ -79,6 +79,7 @@ const actions = {
     const pwHash = hashPassword(b.password);
     await q(`insert into shop_users (id, username, pw_hash, role) values ($1, $2, $3, 'owner')`, [id, username, pwHash]);
     await q(SET, ['staff', id, JSON.stringify({ id, name, username, role: 'owner', maxDiscount: 100, active: true })]);
+    await q(`insert into shop_docs (col, id, data, deleted, rev) values ('settings', 'shop', $1::jsonb, false, nextval('shop_rev')) on conflict (col, id) do nothing`, [JSON.stringify({ name: 'Unicorn Home Appliances', currency: 'GH₵', country: '233' })]);
     const user = { id, username, role: 'owner', pw_hash: pwHash };
     return { token: makeToken(user), user: await userOut(user) };
   },
@@ -147,7 +148,7 @@ const actions = {
     const ops = Object.entries(SAMPLE_IDS).flatMap(([col, ids]) => ids.map(id => [DELETE_LIVE, [col, id]]));
     const out = (await tx(ops)).flat();
     const settings = await q(`select data from shop_docs where col = 'settings' and id = 'shop' and not deleted`);
-    if (settings[0]?.data?.name === 'Home Appliances (sample data)') out.push(...await q(UPDATE, ['settings', 'shop', JSON.stringify({ name: 'Home Appliances' })]));
+    if (settings[0]?.data?.name === 'Home Appliances (sample data)') out.push(...await q(UPDATE, ['settings', 'shop', JSON.stringify({ name: 'Unicorn Home Appliances' })]));
     return { docs: out.map(rowOut), removed: out.length };
   },
 
