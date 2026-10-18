@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { q, tx, hasDb, ensureSchema, hashPassword, checkPassword, makeToken, userFromToken, validSeg, HttpError } from './_lib.js';
-import seedDocs from './_seed.js';
 
 const json = (res, status, body) => { res.statusCode = status; res.setHeader('content-type', 'application/json'); res.setHeader('cache-control', 'no-store'); res.end(JSON.stringify(body)); };
 const rowOut = r => ({ col: r.col, id: r.id, data: r.data, deleted: r.deleted, rev: Number(r.rev) });
@@ -73,11 +72,6 @@ const actions = {
     const id = 'u' + crypto.randomBytes(6).toString('hex');
     const pwHash = hashPassword(b.password);
     await q(`insert into shop_users (id, username, pw_hash, role) values ($1, $2, $3, 'owner')`, [id, username, pwHash]);
-    if (b.seed) {
-      const [{ n: docs }] = await q(`select count(*)::int as n from shop_docs`);
-      const rows = seedDocs.filter(d => d.col !== 'staff');
-      if (!docs) for (let i = 0; i < rows.length; i += 40) await tx(rows.slice(i, i + 40).map(d => [SET, [d.col, d.id, JSON.stringify(d.data)]]));
-    }
     await q(SET, ['staff', id, JSON.stringify({ id, name, username, role: 'owner', maxDiscount: 100, active: true })]);
     const user = { id, username, role: 'owner', pw_hash: pwHash };
     return { token: makeToken(user), user: await userOut(user) };

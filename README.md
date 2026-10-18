@@ -7,7 +7,6 @@ A shop till for a home appliances store: sales with discounts and serial numbers
 - `public/` is the app itself: one page (`index.html`), an offline app shell (`sw.js`), the install manifest and icons.
 - `api/[action].js` holds the server functions the app calls: `status`, `setup`, `login`, `me`, `password`, `users`, `sync`, `doc`, `write` and `lock`.
 - `api/_lib.js` connects to the database, creates the tables on first use, and handles passwords and sessions.
-- `api/_seed.js` holds the sample records from the prototype. They are loaded only if you tick that box during setup.
 
 The database tables (`shop_docs`, `shop_locks`, `shop_users`) are created automatically the first time the app runs.
 

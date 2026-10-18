@@ -1372,7 +1372,6 @@ function bootView(){
       <label for="su_user">Username<input id="su_user" class="mono" autocomplete="username" autocapitalize="none" pattern="[A-Za-z0-9._-]{3,30}" required placeholder="for example kweku"></label>
       <label for="su_pw">Password<input id="su_pw" type="password" minlength="8" autocomplete="new-password" required></label>
       <label for="su_pw2">Type the password again<input id="su_pw2" type="password" minlength="8" autocomplete="new-password" required></label>
-      <label class="check"><input type="checkbox" id="su_seed" checked>Start with the sample records from the prototype</label>
       <span class="err" id="suErr" role="alert"></span>
       <button class="go" type="submit" style="padding:14px">Set up the shop</button></form>`);
   return card(`<h2>Sign in</h2>${BOOT.msg?`<p class="muted" style="margin:0">${esc(BOOT.msg)}</p>`:''}
@@ -1406,7 +1405,7 @@ document.addEventListener('submit', async e => {
   if (e.target.id === 'setupForm') { e.preventDefault(); const err = $('#suErr');
     if ($('#su_pw').value !== $('#su_pw2').value) { err.textContent = 'The two passwords are different.'; return; }
     const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
-    try { const j = await API.call('setup', { code: $('#su_code').value.trim(), name: $('#su_name').value.trim(), username: $('#su_user').value.trim(), password: $('#su_pw').value, seed: $('#su_seed').checked }); API.setToken(j.token); setMe(j.user); toast('Shop set up. Welcome, ' + j.user.name.split(' ')[0]); await connect(); }
+    try { const j = await API.call('setup', { code: $('#su_code').value.trim(), name: $('#su_name').value.trim(), username: $('#su_user').value.trim(), password: $('#su_pw').value }); API.setToken(j.token); setMe(j.user); toast('Shop set up. Welcome, ' + j.user.name.split(' ')[0]); await connect(); }
     catch(x){ err.textContent = x.message || 'Could not set up the shop.'; btn.disabled = false; } }
   if (e.target.id === 'loginForm') { e.preventDefault(); const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
     try { const j = await API.call('login', { username: $('#li_user').value.trim(), password: $('#li_pw').value }); API.setToken(j.token); setMe(j.user); BOOT.msg = ''; await connect(); }
