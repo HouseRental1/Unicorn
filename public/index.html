@@ -373,7 +373,7 @@ const S = { products:{}, customers:{}, sales:{}, plans:{}, staff:{}, claims:{}, 
 const ready = Object.fromEntries(COLS.map(c=>[c,false]));
 let db = null, dl = null, tab = 'overview', readOnly = false, me = null, meUser = null;
 const TAB_ID = 't' + Math.random().toString(36).slice(2,10);
-const freshCart = () => ({ items:[], customerId:'', method:'cash', depositMethod:'cash', deposit:'', count:6, freq:'monthly', discType:'amt', discVal:'', discNote:'' });
+const freshCart = () => ({ items:[], customerId:'', method:'cash', depositMethod:'cash', deposit:'', count:6, freq:'monthly', discType:'amt', discVal:'', discNote:'', channel:'shop', delivery:'' });
 const cart = freshCart();
 const ui = { stockView:'items', moveQ:'', q:'', cat:'all', planFilter:'open', custQ:'', saleQ:'', wq:'', period:'month' };
 try { const t = localStorage.getItem('shopTab'); if (t) tab = t;  } catch(e) {}
@@ -432,6 +432,10 @@ const payOptions = sel => Object.entries(PAYM).map(([k,l])=>`<option value="${k}
 const list = o => Object.values(o);
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const custName = id => S.customers[id]?.name || 'Walk-in customer';
+const isOnline = s => s.channel === 'online';
+const saleCust = s => s.customerId ? custName(s.customerId) : (isOnline(s) ? 'Online customer' : 'Walk-in customer');
+const saleAvatar = s => s.customerId ? avatar(s.customerId) : avatarN(isOnline(s) ? 'online' : 'walkin', saleCust(s));
+const onlinePill = s => isOnline(s) ? ' <span class="pill acc">Online</span>' : '';
 const initials = n => (n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
 const avColor = s => 'var(--av'+(1+[...(s||'')].reduce((a,c)=>a+c.charCodeAt(0),0)%4)+')';
 const avatarN = (key, name) => `<span class="av" style="background:${avColor(key||name)}">${esc(initials(name))}</span>`;
@@ -569,19 +573,20 @@ function flow(from, to){
   return { by, refunds: round2(refunds), planIn: round2(planIn), n, returnedN, sold: round2(Math.max(0, sold)), total: round2(Object.values(by).reduce((a,b)=>a+b,0)) };
 }
 function metrics(from, to){
-  let gross=0, disc=0, n=0, cogs=0, refunds=0, units=0; const byDay={}, byProd={}, byStaff={}, byCat={};
+  let gross=0, disc=0, n=0, cogs=0, refunds=0, units=0; const byDay={}, byProd={}, byStaff={}, byCat={}, byChannel={};
   for (const s of list(S.sales)){
     const d = s.date.slice(0,10), sh = shareOf(s);
     if (d>=from && d<=to){ n++; gross += s.total; disc += saleDisc(s); byDay[d] = (byDay[d]||0) + s.total;
       s.items.forEach(i => { const c = itemCost(i)*i.qty; cogs += c; units += i.qty;
         const k = i.productId || i.name; const bp = byProd[k] || (byProd[k] = { name:i.name, units:0, rev:0, cost:0 }); bp.units += i.qty; bp.rev += i.price*i.qty*sh; bp.cost += c;
         const cat = S.products[i.productId]?.category || 'Other'; byCat[cat] = (byCat[cat]||0) + i.price*i.qty*sh; });
-      const st = s.staffId || ''; byStaff[st] = (byStaff[st]||0) + s.total; }
+      const st = s.staffId || ''; byStaff[st] = (byStaff[st]||0) + s.total;
+      const ch = isOnline(s) ? 'Online' : 'In shop'; byChannel[ch] = (byChannel[ch]||0) + s.total; }
     for (const r of (s.returns||[])) if (r.date>=from && r.date<=to){ refunds += r.refund; byDay[r.date] = (byDay[r.date]||0) - r.refund;
       if (r.restocked) (r.units||[]).forEach(u => { const i = s.items[u.i]; if (i) { cogs -= itemCost(i); const bp = byProd[i.productId||i.name]; if (bp){ bp.units -= 1; bp.rev -= i.price*sh; bp.cost -= itemCost(i); } } }); }
   }
   const net = gross - refunds;
-  return { gross:round2(gross), disc:round2(disc), n, cogs:round2(cogs), refunds:round2(refunds), net:round2(net), profit:round2(net-cogs), units, byDay, byProd, byStaff, byCat };
+  return { gross:round2(gross), disc:round2(disc), n, cogs:round2(cogs), refunds:round2(refunds), net:round2(net), profit:round2(net-cogs), units, byDay, byProd, byStaff, byCat, byChannel };
 }
 function periodRange(p){
   const t = new Date();
@@ -663,7 +668,7 @@ function overview(){
         : `<div class="empty">Nobody is late, and no payments fall due in the next three days.</div>`}
       </section>
       <section class="card"><div class="cardhead"><h3>Latest sales</h3><button class="link" data-tab="sales">Sales log</button></div>
-        ${recent.length ? `<div class="people">${recent.map(s=>`<div class="person">${avatar(s.customerId)}<div class="who"><b>${esc(s.items.map(i=>i.name).join(', '))}</b><span class="sub">${esc(custName(s.customerId))} · ${fmtDT(s.date)} · ${METHODS[s.method]}${s.staffId?' · '+esc(staffName(s.staffId)):''}</span></div>${retPill(s)}<button class="small" data-receipt="${s.id}"><span class="num">${money(s.total)}</span></button></div>`).join('')}</div>` : `<div class="empty">No sales yet. Record one under New sale.</div>`}
+        ${recent.length ? `<div class="people">${recent.map(s=>`<div class="person">${saleAvatar(s)}<div class="who"><b>${esc(s.items.map(i=>i.name).join(', '))}</b><span class="sub">${esc(saleCust(s))} · ${fmtDT(s.date)} · ${METHODS[s.method]}${s.staffId?' · '+esc(staffName(s.staffId)):''}</span></div>${retPill(s)}<button class="small" data-receipt="${s.id}"><span class="num">${money(s.total)}</span></button></div>`).join('')}</div>` : `<div class="empty">No sales yet. Record one under New sale.</div>`}
       </section>
     </div>
     <div class="stack">
@@ -728,7 +733,9 @@ function sell(){
       ${disc>0?`<div class="rline minus"><span class="n">Discount${cart.discType==='pct'?' '+Number(cart.discVal)+'%':''}</span><span class="num">−${money(disc)}</span></div>`:''}
       <div class="rtotal"><span>Total</span><span>${money(total)}</span></div>
       <label for="cartCust">Customer ${isPlan?'(needed for installments)':'(optional)'}
-        <select id="cartCust"><option value="">Walk-in customer</option>${custs.map(c=>`<option value="${c.id}" ${c.id===cart.customerId?'selected':''}>${esc(c.name)} · ${esc(c.phone)}</option>`).join('')}</select></label>
+        <select id="cartCust"><option value="" ${!cart.customerId&&cart.channel!=='online'?'selected':''}>Walk-in customer</option><option value="__online" ${!cart.customerId&&cart.channel==='online'?'selected':''}>Online customer</option>${custs.map(c=>`<option value="${c.id}" ${c.id===cart.customerId?'selected':''}>${esc(c.name)} · ${esc(c.phone)}</option>`).join('')}</select></label>
+      ${cart.customerId ? `<label class="check"><input type="checkbox" id="cartOnline" ${cart.channel==='online'?'checked':''}>Online order</label>` : ''}
+      ${cart.channel==='online' ? `<label for="cartDeliv">Delivery address or note (optional)<input id="cartDeliv" placeholder="For example East Legon, near the Shell station" value="${esc(cart.delivery)}"></label>` : ''}
       ${can('sell')?`<button class="link" data-newcust="sell" style="align-self:flex-start">+ New customer</button>`:''}
       <div style="display:flex;flex-direction:column;gap:6px"><span class="kicker">Payment</span><div class="methods">${Object.entries(METHODS).map(([k,l])=>`<button data-method="${k}" aria-pressed="${cart.method===k}"><i class="dot ${mIcon[k]}"></i>${l}</button>`).join('')}</div></div>
       ${isPlan ? `<div class="fields">
@@ -835,7 +842,7 @@ function warranty(){
   const q = ui.wq.trim(), Q = q.toUpperCase(), ql = q.toLowerCase();
   let hits = [], shelf = [];
   if (q.length >= 2) {
-    hits = unitsSold().filter(x => (x.serial && x.serial.toUpperCase().includes(Q)) || x.s.receipt.toUpperCase() === Q || custName(x.s.customerId).toLowerCase().includes(ql) || (S.customers[x.s.customerId]?.phone||'').replace(/\s/g,'').includes(ql.replace(/\s/g,'')) && ql.replace(/\D/g,'').length>=4)
+    hits = unitsSold().filter(x => (x.serial && x.serial.toUpperCase().includes(Q)) || x.s.receipt.toUpperCase() === Q || saleCust(x.s).toLowerCase().includes(ql) || (S.customers[x.s.customerId]?.phone||'').replace(/\s/g,'').includes(ql.replace(/\s/g,'')) && ql.replace(/\D/g,'').length>=4)
       .sort((a,b)=>b.s.date.localeCompare(a.s.date)).slice(0,30);
     shelf = list(S.products).flatMap(p => serialsOf(p).filter(sn=>sn.includes(Q)).map(sn=>({p, sn}))).slice(0,10);
   }
@@ -850,7 +857,7 @@ function warranty(){
       <div class="meterw ${w.exp?'exp':''}"><i style="width:${w.pct}%"></i></div>
       ${x.i.received && x.i.received[x.serial] ? `<div class="sub">Received ${fmtDT(x.i.received[x.serial])} · sold ${fmtDT(x.s.date)}</div>` : `<div class="sub">Sold ${fmtDT(x.s.date)}</div>`}
       <div class="figs"><div><span class="kicker">Sold</span><b>${fmtShort(x.s.date)}</b></div><div><span class="kicker">Covered to</span><b>${x.i.warrantyMonths?fmtShort(w.end):'No cover'}</b></div><div><span class="kicker">Receipt</span><b class="mono" style="font-size:13px">${esc(x.s.receipt)}</b></div></div>
-      <div class="person" style="padding:0;border:0">${avatar(x.s.customerId)}<div class="who"><b>${esc(custName(x.s.customerId))}</b><span class="sub mono">${esc(S.customers[x.s.customerId]?.phone||'')}</span></div></div>
+      <div class="person" style="padding:0;border:0">${saleAvatar(x.s)}<div class="who"><b>${esc(saleCust(x.s))}</b><span class="sub mono">${esc(S.customers[x.s.customerId]?.phone||'')}</span></div></div>
       ${claimsFor.length?`<div class="sub">${claimsFor.length} claim${claimsFor.length===1?'':'s'} logged · latest ${fmtShort(claimsFor.sort((a,b)=>b.date.localeCompare(a.date))[0].date)}</div>`:''}
       <div class="acts" style="justify-content:flex-end">${can('claim')&&w.label!=='Returned'?`<button class="small primary" data-claim="${x.s.id}|${x.ix}|${esc(x.serial)}">Log a claim</button>`:''}${can('returns')&&w.label!=='Returned'?`<button class="small" data-return="${x.s.id}">Return</button>`:''}<button class="small" data-receipt="${x.s.id}">Receipt</button></div>
     </article>`; }).join('')}
@@ -882,12 +889,12 @@ function customers(){
 /* ================= Sales log ================= */
 function sales(){
   const q = ui.saleQ.trim().toLowerCase();
-  const rows = list(S.sales).filter(s=>!q || (s.receipt+' '+custName(s.customerId)+' '+staffName(s.staffId)+' '+s.items.map(i=>i.name+' '+unitSerials(i).join(' ')).join(' ')).toLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date));
+  const rows = list(S.sales).filter(s=>!q || (s.receipt+' '+saleCust(s)+' '+(isOnline(s)?'online ':'')+(s.delivery||'')+' '+staffName(s.staffId)+' '+s.items.map(i=>i.name+' '+unitSerials(i).join(' ')).join(' ')).toLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date));
   const sum = rows.reduce((a,s)=>a+s.total-(s.refundTotal||0),0);
-  return head('Sales log', searchBox('saleQ','Receipt, name, staff or serial',ui.saleQ)) + `
+  return head('Sales log', searchBox('saleQ','Receipt, name, staff, serial or “online”',ui.saleQ)) + `
   <div class="bar"><span class="sub">${rows.length} ${rows.length===1?'sale':'sales'} · ${money(sum)} after refunds</span></div>
   <section class="card tcard tw"><table><thead><tr><th>Receipt</th><th>When</th><th>Customer</th><th>Items</th><th>Payment</th><th>Served by</th><th class="r">Total</th><th></th></tr></thead><tbody>
-  ${rows.map(s=>`<tr><td class="mono"><b>${esc(s.receipt)}</b></td><td style="white-space:nowrap">${fmtDT(s.date)}</td><td>${esc(custName(s.customerId))}</td>
+  ${rows.map(s=>`<tr><td class="mono"><b>${esc(s.receipt)}</b></td><td style="white-space:nowrap">${fmtDT(s.date)}</td><td>${esc(saleCust(s))}${onlinePill(s)}${s.delivery?`<br><span class="sub">${esc(s.delivery)}</span>`:''}</td>
     <td>${s.items.map(i=>`${esc(i.name)}${i.qty>1?' × '+i.qty:''}${unitSerials(i).length?`<br><span class="sub mono">S/N ${esc(unitSerials(i).join(', '))}</span>`:''}`).join('<br>')}</td><td style="white-space:nowrap"><i class="dot m-${s.method==='installment'?'deposit':s.method}" style="margin-right:6px"></i>${METHODS[s.method]}</td>
     <td>${esc(staffName(s.staffId))||'<span class="sub">–</span>'}</td>
     <td class="r"><b>${money(s.total)}</b>${saleDisc(s)?`<br><span class="sub">−${money(saleDisc(s))} off</span>`:''}${s.refundTotal?`<br><span class="sub" style="color:var(--bad)">−${money(s.refundTotal)} refunded</span>`:''}</td>
@@ -928,6 +935,8 @@ function reports(){
       <section class="card"><div class="cardhead"><h3>Money in by method</h3></div>
         <div class="hbars">${Object.entries(f.by).map(([k,v])=>`<div class="b"><span>${PAYM[k]}</span><span class="t"><i style="width:${Math.max(0,v)/Math.max(1,...Object.values(f.by))*100}%"></i></span><span class="num">${money(v)}</span></div>`).join('')}</div>
         <p class="sub" style="margin:12px 0 0">Includes ${money(f.planIn)} in plan payments, less ${money(f.refunds)} refunded.</p></section>
+      <section class="card"><div class="cardhead"><h3>In shop and online</h3></div>
+        ${Object.keys(m.byChannel).length?`<div class="hbars">${['In shop','Online'].map(c=>`<div class="b"><span>${c}</span><span class="t"><i style="width:${(m.byChannel[c]||0)/Math.max(1,...Object.values(m.byChannel))*100}%"></i></span><span class="num">${money(m.byChannel[c]||0)}</span></div>`).join('')}</div>`:'<div class="empty">No sales in this period.</div>'}</section>
       <section class="card"><div class="cardhead"><h3>Sales by category</h3></div>
         ${cats.length?`<div class="hbars">${cats.map(([c,v])=>`<div class="b"><span>${esc(c)}</span><span class="t"><i style="width:${v/cmax*100}%"></i></span><span class="num">${money(v)}</span></div>`).join('')}</div>`:'<div class="empty">No sales in this period.</div>'}</section>
     </div>
@@ -945,9 +954,9 @@ const diffPill = (l, d) => { d = round2(d||0); return Math.abs(d)<0.01 ? `<span 
 async function downloadCsv(){
   const [from, to, label] = periodRange(ui.period);
   const q = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
-  const rows = [['Date','Receipt','Customer','Phone','Served by','Items','Serials','Payment','Subtotal','Discount','Total','Refunded']];
+  const rows = [['Date','Receipt','Channel','Customer','Phone','Served by','Items','Serials','Payment','Subtotal','Discount','Total','Refunded']];
   list(S.sales).filter(s=>{const d=s.date.slice(0,10); return d>=from&&d<=to;}).sort((a,b)=>a.date.localeCompare(b.date)).forEach(s=>rows.push([
-    s.date.slice(0,16).replace('T',' '), s.receipt, custName(s.customerId), S.customers[s.customerId]?.phone||'', staffName(s.staffId), s.items.map(i=>i.name+(i.qty>1?' x'+i.qty:'')).join('; '), s.items.map(i=>unitSerials(i).join(' ')).join('; '), METHODS[s.method], saleSub(s).toFixed(2), saleDisc(s).toFixed(2), s.total.toFixed(2), (s.refundTotal||0).toFixed(2)]));
+    s.date.slice(0,16).replace('T',' '), s.receipt, isOnline(s)?'Online':'In shop', saleCust(s), S.customers[s.customerId]?.phone||'', staffName(s.staffId), s.items.map(i=>i.name+(i.qty>1?' x'+i.qty:'')).join('; '), s.items.map(i=>unitSerials(i).join(' ')).join('; '), METHODS[s.method], saleSub(s).toFixed(2), saleDisc(s).toFixed(2), s.total.toFixed(2), (s.refundTotal||0).toFixed(2)]));
   try { await dl.save({ filename: `sales-${from}-to-${to}.csv`, data: rows.map(r=>r.map(q).join(',')).join('\r\n') }); toast('Sales file saved'); }
   catch(e){ if (e?.code !== 'declined') toast('Could not save the file here'); }
 }
@@ -997,7 +1006,7 @@ function staffForm(id){
   modal(mhead(id?'Edit staff login':'Add staff login','Cancel') + `
   <form id="staffForm" class="stack" style="gap:18px"><div class="fields">
     <label for="sf_name" class="full">Full name<input id="sf_name" required maxlength="80" value="${esc(p.name)}"></label>
-    <label for="sf_user">Username<input id="sf_user" class="mono" required pattern="[A-Za-z0-9._-]{3,30}" autocomplete="off" autocapitalize="none" value="${esc(p.username||'')}" ${id?'disabled':''}></label>
+    <label for="sf_user">Username<input id="sf_user" class="mono" required pattern="[A-Za-z0-9._\-]{3,30}" autocomplete="off" autocapitalize="none" value="${esc(p.username||'')}" ${id?'disabled':''}></label>
     <label for="sf_role">Role<select id="sf_role" ${self?'disabled':''}>${['sales','manager','owner'].map(r=>`<option value="${r}" ${p.role===r?'selected':''}>${r[0].toUpperCase()+r.slice(1)}</option>`).join('')}</select></label>
     <label for="sf_max">Largest discount (%)<input id="sf_max" type="number" min="0" max="100" value="${esc(p.maxDiscount ?? 0)}"></label>
     <label for="sf_pw">${id?'New password (leave blank to keep it)':'Password, at least 8 characters'}<input id="sf_pw" type="password" minlength="8" ${id?'':'required'} autocomplete="new-password"></label>
@@ -1024,7 +1033,8 @@ function receiptText(s){
   const line = (l, r) => { l = String(l); r = String(r); return l.length + r.length + 1 > W ? l + '\n' + ' '.repeat(Math.max(0,W-r.length)) + r : l + ' '.repeat(W - l.length - r.length) + r; };
   const center = t => ' '.repeat(Math.max(0, Math.floor((W - t.length)/2))) + t;
   const out = [center(S.settings.name), center('Receipt ' + s.receipt), center(fmtDT(s.date)), ''];
-  if (c) out.push('Customer: '+c.name, 'Phone: '+c.phone); else out.push('Walk-in customer');
+  if (c) out.push('Customer: '+c.name, 'Phone: '+c.phone); else out.push(saleCust(s));
+  if (isOnline(s)) { out.push('Online order'); if (s.delivery) out.push('Deliver to: ' + s.delivery); }
   if (s.staffId) out.push('Served by: ' + staffName(s.staffId));
   out.push('-'.repeat(W));
   s.items.forEach((i, ix) => { out.push(line(i.name + (i.qty>1?' x'+i.qty:''), plain(i.price*i.qty)));
@@ -1050,7 +1060,7 @@ function returnForm(id){
   const isPlan = s.method==='installment'; const plan = S.plans[s.planId]; const sh = shareOf(s);
   const paid = isPlan ? round2((plan ? planStats(plan).paid : 0) - (s.refundTotal||0)) : round2(s.total - (s.refundTotal||0));
   const units = []; s.items.forEach((i,ix)=>{ const sns = unitSerials(i); for (let u=0; u<i.qty; u++) units.push({ ix, u, serial: sns[u]||'', name:i.name, net: round2(i.price*sh), done: isReturned(s,ix,u) }); });
-  modal(mhead('Return items','Cancel') + `<p class="muted" style="margin:0">Receipt ${esc(s.receipt)} · ${esc(custName(s.customerId))} · sold ${fmtD(s.date)}${isPlan?'. This was an installment sale, so the whole plan is returned and closed.':''}</p>
+  modal(mhead('Return items','Cancel') + `<p class="muted" style="margin:0">Receipt ${esc(s.receipt)} · ${esc(saleCust(s))} · sold ${fmtD(s.date)}${isPlan?'. This was an installment sale, so the whole plan is returned and closed.':''}</p>
   <form id="retForm" class="stack" style="gap:16px">
     <div class="units">${units.map((x,k)=>`<label class="${x.done?'done':''}"><input type="checkbox" data-unit="${k}" ${x.done?'disabled':''} ${!x.done&&(isPlan||units.length===1)?'checked':''} ${isPlan&&!x.done?'onclick="return false"':''}><span style="flex:1">${esc(x.name)}${x.serial?`<br><span class="sub mono">S/N ${esc(x.serial)}</span>`:''}</span><span class="num">${x.done?'Returned':money(x.net)}</span></label>`).join('')}</div>
     <div class="fields">
@@ -1090,7 +1100,7 @@ function returnForm(id){
 }
 function claimForm(saleId, ix, serial){
   const s = S.sales[saleId], i = s.items[ix];
-  modal(mhead('Log a warranty claim','Cancel') + `<div class="itemcell"><span class="glyph">${glyph(S.products[i.productId]?.category)}</span><span><b>${esc(i.name)}</b><br><span class="sub mono">${serial?'S/N '+esc(serial):'No serial'} · ${esc(custName(s.customerId))}</span></span></div>
+  modal(mhead('Log a warranty claim','Cancel') + `<div class="itemcell"><span class="glyph">${glyph(S.products[i.productId]?.category)}</span><span><b>${esc(i.name)}</b><br><span class="sub mono">${serial?'S/N '+esc(serial):'No serial'} · ${esc(saleCust(s))}</span></span></div>
   <form id="clForm" class="stack" style="gap:16px"><div class="fields">
     <label for="cl_type">What the customer needs<select id="cl_type"><option value="repair">Repair</option><option value="replacement">Replacement</option><option value="inspection">Inspection</option></select></label>
     <label for="cl_date">Brought in<input id="cl_date" type="date" value="${todayISO()}"></label>
@@ -1298,7 +1308,7 @@ async function completeSale(){
       locked[pid] = L;
     }
     const sref = db.collection('sales').doc(); saleId = sref.id;
-    const sale = { id:sref.id, receipt:'R-' + Date.now().toString(36).slice(-6).toUpperCase(), date:new Date().toISOString(), customerId:cart.customerId||'', method:cart.method, subtotal:sub, discount:disc, discountNote: disc ? cart.discNote.trim() : '', total, staffId,
+    const sale = { id:sref.id, receipt:'R-' + Date.now().toString(36).slice(-6).toUpperCase(), date:new Date().toISOString(), customerId:cart.customerId||'', method:cart.method, subtotal:sub, discount:disc, discountNote: disc ? cart.discNote.trim() : '', total, staffId, channel: cart.channel === 'online' ? 'online' : 'shop', delivery: cart.channel === 'online' ? cart.delivery.trim() : '',
       items: items.map(i=>{ const sd = serialDatesOf(locked[i.productId].data); const rec = {}; (i.serials||[]).forEach(sn => { if (sd[sn]) rec[sn] = sd[sn]; });
         return { productId:i.productId, name:i.name, qty:i.qty, price:i.price, cost: Number(locked[i.productId].data.cost||0), serials:i.serials||[], serial:(i.serials||[]).join(', '), received: rec, warrantyMonths:i.warrantyMonths||0 }; }) };
     let pref = null;
@@ -1371,7 +1381,7 @@ document.addEventListener('submit', async e => {
 document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
 let qTimer;
 const refocus = id => { const el = document.getElementById(id); if (el){ el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch(x){} } };
-const TYPING = ['moveQ','sellQ','stockQ','custQ','saleQ','wQ','cartDep','cartCount','discVal','discNote'];
+const TYPING = ['cartDeliv','moveQ','sellQ','stockQ','custQ','saleQ','wQ','cartDep','cartCount','discVal','discNote'];
 document.addEventListener('input', e => {
   const id = e.target.id, map = { moveQ:'moveQ', sellQ:'q', stockQ:'q', custQ:'custQ', saleQ:'saleQ', wQ:'wq' };
   if (map[id]){ clearTimeout(qTimer); qTimer = setTimeout(()=>{ ui[map[id]] = e.target.value;
@@ -1385,9 +1395,11 @@ document.addEventListener('input', e => {
   else if (id==='cartCount'){ cart.count = Math.max(1, Math.min(36, parseInt(e.target.value)||1)); clearTimeout(qTimer); qTimer = setTimeout(()=>{ render(); refocus(id); }, 450); }
   else if (id==='discVal'){ cart.discVal = e.target.value; clearTimeout(qTimer); qTimer = setTimeout(()=>{ render(); refocus(id); }, 450); }
   else if (id==='discNote'){ cart.discNote = e.target.value; }
+  else if (id==='cartDeliv'){ cart.delivery = e.target.value; }
 });
 document.addEventListener('change', e => {
-  if (e.target.id==='cartCust'){ cart.customerId = e.target.value; render(); }
+  if (e.target.id==='cartCust'){ const v = e.target.value; if (v === '__online') { cart.customerId = ''; cart.channel = 'online'; } else { cart.customerId = v; if (!v) cart.channel = 'shop'; } render(); }
+  if (e.target.id==='cartOnline'){ cart.channel = e.target.checked ? 'online' : 'shop'; render(); }
   if (e.target.id==='cartFreq'){ cart.freq = e.target.value; render(); }
   if (e.target.id==='cartDepM'){ cart.depositMethod = e.target.value; }
 });
@@ -1462,7 +1474,7 @@ function bootView(){
     <form id="setupForm" class="card stack" style="gap:14px;text-align:left">
       <label for="su_code">Setup code<input id="su_code" class="mono" autocomplete="off" autocapitalize="characters" required></label>
       <label for="su_name">Your name<input id="su_name" autocomplete="name" maxlength="80" required></label>
-      <label for="su_user">Username<input id="su_user" class="mono" autocomplete="username" autocapitalize="none" pattern="[A-Za-z0-9._-]{3,30}" required placeholder="for example kweku"></label>
+      <label for="su_user">Username<input id="su_user" class="mono" autocomplete="username" autocapitalize="none" pattern="[A-Za-z0-9._\-]{3,30}" required placeholder="for example kweku"></label>
       <label for="su_pw">Password<input id="su_pw" type="password" minlength="8" autocomplete="new-password" required></label>
       <label for="su_pw2">Type the password again<input id="su_pw2" type="password" minlength="8" autocomplete="new-password" required></label>
       <span class="err" id="suErr" role="alert"></span>
