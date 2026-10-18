@@ -5,11 +5,11 @@ A shop till for a home appliances store: sales with discounts and serial numbers
 ## How it is built
 
 - `public/` is the app itself: one page (`index.html`), an offline app shell (`sw.js`), the install manifest and icons.
-- `api/[action].js` holds the server functions the app calls: `status`, `setup`, `login`, `password`, `sync`, `doc`, `write` and `lock`.
+- `api/[action].js` holds the server functions the app calls: `status`, `setup`, `login`, `me`, `password`, `users`, `sync`, `doc`, `write` and `lock`.
 - `api/_lib.js` connects to the database, creates the tables on first use, and handles passwords and sessions.
 - `api/_seed.js` holds the sample records from the prototype. They are loaded only if you tick that box during setup.
 
-The database tables (`shop_docs`, `shop_locks`, `shop_account`) are created automatically the first time the app runs.
+The database tables (`shop_docs`, `shop_locks`, `shop_users`) are created automatically the first time the app runs.
 
 ## Settings on Vercel
 
@@ -17,15 +17,25 @@ The database tables (`shop_docs`, `shop_locks`, `shop_account`) are created auto
 | --- | --- |
 | `DATABASE_URL` | Added automatically when you connect a Neon database under **Storage**. |
 | `SESSION_SECRET` | A long random string that signs device sessions. |
-| `SETUP_CODE` | A one-time code needed to set the shop password the first time. |
+| `SETUP_CODE` | A one-time code needed to create the owner login the first time. |
 
 ## First run
 
 1. Connect a Neon database to the project under **Storage**, then redeploy.
-2. Open the site. Enter the setup code and choose the shop password.
-3. In **Settings**, add yourself as the owner with a PIN, then add your staff.
+2. Open the site. Enter the setup code and create the owner login: your name, a username and a password.
+3. In **Settings**, add a login for each staff member with their own username, password, role and largest allowed discount.
 
-Each till device signs in once with the shop password and stays signed in for 30 days. Changing the password signs every device out. Staff then pick their name and enter their PIN, so every sale, payment and refund is recorded under the person who did it.
+## Logins
+
+Everyone signs in with their own username and password, and every sale, payment and refund is recorded under their name. A device stays signed in for 30 days. Changing or resetting a password signs that person out everywhere, and an owner can turn a login off at any time.
+
+| Role | Can |
+| --- | --- |
+| Sales | Sell, take installment payments, log warranty claims, close the day |
+| Manager | All of the above, plus edit items, restock, give returns and see reports |
+| Owner | Everything, including staff logins, shop settings and deleting items |
+
+The server enforces the owner-only actions as well as the app. Passwords are stored as scrypt hashes.
 
 ## Printing
 
@@ -39,7 +49,7 @@ npm install --no-save @electric-sql/pglite@0.3.0
 node test/server.js
 ```
 
-Then open http://localhost:5055. The local server uses an in-memory Postgres, with the setup code `TILL-TEST-42`.
+Then open http://localhost:5055. The local server uses an in-memory Postgres, and the setup code is `TILL-TEST-42`.
 
 ## Limits
 

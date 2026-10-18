@@ -36,7 +36,13 @@ export async function ensureSchema() {
     primary key (col, id))`);
   await q(`create index if not exists shop_docs_rev on shop_docs (rev)`);
   await q(`create table if not exists shop_locks (key text primary key, holder text not null, expires_at timestamptz not null)`);
-  await q(`create table if not exists shop_account (id int primary key check (id = 1), pw_hash text not null, created_at timestamptz not null default now())`);
+  await q(`create table if not exists shop_users (
+    id text primary key,
+    username text not null unique,
+    pw_hash text not null,
+    role text not null,
+    active boolean not null default true,
+    created_at timestamptz not null default now())`);
   schemaReady = true;
 }
 
@@ -59,22 +65,22 @@ function secret() {
   if (!s || s.length < 16) throw Object.assign(new Error('SESSION_SECRET is not set'), { status: 500, code: 'config' });
   return s;
 }
-// The token is bound to the current password hash, so changing the password signs every device out.
-export function makeToken(pwHash) {
+// A session token names the user and is bound to their current password hash,
+// so changing or resetting a password signs that person out everywhere.
+export function makeToken(user) {
   const exp = Date.now() + SESSION_DAYS * 86400000;
-  const sig = crypto.createHmac('sha256', secret()).update(`v1.${exp}.${pwHash}`).digest('base64url');
-  return `v1.${exp}.${sig}`;
+  const sig = crypto.createHmac('sha256', secret()).update(`v2.${exp}.${user.id}.${user.pw_hash}`).digest('base64url');
+  return `v2.${exp}.${user.id}.${sig}`;
 }
-export function tokenValid(token, pwHash) {
-  const [v, exp, sig] = String(token || '').split('.');
-  if (v !== 'v1' || !exp || !sig || Number(exp) < Date.now()) return false;
-  const want = crypto.createHmac('sha256', secret()).update(`v1.${exp}.${pwHash}`).digest('base64url');
+export async function userFromToken(token) {
+  const [v, exp, id, sig] = String(token || '').split('.');
+  if (v !== 'v2' || !exp || !id || !sig || Number(exp) < Date.now()) return null;
+  const rows = await q(`select id, username, pw_hash, role, active from shop_users where id = $1`, [id]);
+  const u = rows[0];
+  if (!u || !u.active) return null;
+  const want = crypto.createHmac('sha256', secret()).update(`v2.${exp}.${u.id}.${u.pw_hash}`).digest('base64url');
   const a = Buffer.from(sig), b = Buffer.from(want);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-export async function account() {
-  const rows = await q(`select pw_hash from shop_account where id = 1`);
-  return rows[0] || null;
+  return a.length === b.length && crypto.timingSafeEqual(a, b) ? u : null;
 }
 
 /* ---------- Validation ---------- */

@@ -371,12 +371,12 @@ textarea{min-height:44px}
 const COLS = ['products','customers','sales','plans','staff','claims','closes'];
 const S = { products:{}, customers:{}, sales:{}, plans:{}, staff:{}, claims:{}, closes:{}, settings:{ name:'Home Appliances', currency:'GH₵', country:'233' } };
 const ready = Object.fromEntries(COLS.map(c=>[c,false]));
-let db = null, dl = null, tab = 'overview', readOnly = false, me = null, pinFor = null;
+let db = null, dl = null, tab = 'overview', readOnly = false, me = null, meUser = null;
 const TAB_ID = 't' + Math.random().toString(36).slice(2,10);
 const freshCart = () => ({ items:[], customerId:'', method:'cash', depositMethod:'cash', deposit:'', count:6, freq:'monthly', discType:'amt', discVal:'', discNote:'' });
 const cart = freshCart();
 const ui = { q:'', cat:'all', planFilter:'open', custQ:'', saleQ:'', wq:'', period:'month' };
-try { const t = localStorage.getItem('shopTab'); if (t) tab = t; me = localStorage.getItem('tillStaff') || null; } catch(e) {}
+try { const t = localStorage.getItem('shopTab'); if (t) tab = t;  } catch(e) {}
 
 /* ================= Icons ================= */
 const sv = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -461,8 +461,8 @@ const waBtn = (phone, text, label='WhatsApp') => { const h = waLink(phone, text)
 
 /* ================= Staff & permissions ================= */
 const activeStaff = () => list(S.staff).filter(s=>s.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
-const staffMode = () => activeStaff().length > 0;
-const meObj = () => staffMode() ? (S.staff[me] && S.staff[me].active!==false ? S.staff[me] : null) : { id:'', name:'', role:'owner', maxDiscount:100 };
+const staffMode = () => true;
+const meObj = () => (me && S.staff[me]) || meUser || null;
 const RANK = { owner:9, manager:5, sales:1 };
 const NEED = { sell:1, pay:1, claim:1, close:1, editItems:5, restock:5, returns:5, reports:5, deleteItems:9, staff:9, settings:9 };
 const rank = () => RANK[meObj()?.role] || 1;
@@ -488,7 +488,7 @@ function sha256js(str){
   }
   return H.map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
 }
-function setMe(id){ me = id; try { id ? localStorage.setItem('tillStaff', id) : localStorage.removeItem('tillStaff'); } catch(e){} }
+function setMe(u){ meUser = u || null; me = u ? u.id : null; }
 
 /* ================= Saving ================= */
 function toast(msg){ const t = document.createElement('div'); t.className='toast'; t.setAttribute('role','status'); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 3200); }
@@ -585,7 +585,7 @@ function periodRange(p){
 function navBtn(k, label, extra=''){ const od = k==='plans' ? overdueCount() : 0;
   return `<button data-tab="${k}" aria-current="${tab===k?'page':'false'}">${IC[k]}<span>${label}</span>${od?`<span class="count">${od}</span>`:''}${extra}</button>`; }
 function renderNav(){
-  if (!db || (Object.values(ready).every(Boolean) && staffMode() && !meObj())) { $('#sideNav').innerHTML=''; $('#tabBar').innerHTML=''; $('#tillV').textContent='Locked'; $('#tillS').textContent=db?'Sign in to see today’s takings':'Sign in to the till'; $('#onTill').innerHTML=''; $('#mobileRight').innerHTML=''; const n=S.settings.name||'Home Appliances'; $('#shopName').textContent=n; $('#shopNameM').textContent=n; return; }
+  if (!db) { $('#sideNav').innerHTML=''; $('#tabBar').innerHTML=''; $('#tillV').textContent='Locked'; $('#tillS').textContent='Sign in to see today’s takings'; $('#onTill').innerHTML=''; $('#mobileRight').innerHTML=''; const n=S.settings.name||'Home Appliances'; $('#shopName').textContent=n; $('#shopNameM').textContent=n; return; }
   const vis = TABS.filter(([k,,r]) => rank() >= r || !staffMode() && r<=9);
   $('#sideNav').innerHTML = vis.map(([k,l])=>navBtn(k,l)).join('');
   const moreOn = !MOBILE.includes(tab);
@@ -597,8 +597,8 @@ function renderNav(){
   $('#tillV').innerHTML = f ? moneyBig(f.total).replace('<small>','<small style="font-size:.5em;margin-right:4px;color:var(--side-muted)">') : '–';
   $('#tillS').textContent = f ? `${f.n} ${f.n===1?'sale':'sales'} so far` : '';
   const m = ok && staffMode() ? meObj() : null;
-  $('#onTill').innerHTML = m ? `<div class="onTill">${avatarN(m.id, m.name)}<span class="who"><b>${esc(m.name)}</b><span class="rolepill">${esc(m.role)}</span></span><button data-switch>Switch</button></div>` : '';
-  $('#mobileRight').innerHTML = m ? `<button data-switch>${esc(m.name.split(' ')[0])} · Switch</button>` : '';
+  $('#onTill').innerHTML = m ? `<div class="onTill">${avatarN(m.id, m.name)}<span class="who"><b>${esc(m.name)}</b><span class="rolepill">${esc(m.role)}</span></span><button data-signout>Sign out</button></div>` : '';
+  $('#mobileRight').innerHTML = m ? `<button data-signout>${esc(m.name.split(' ')[0])} · Sign out</button>` : '';
 }
 function head(title, tools=''){
   const d = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -609,21 +609,9 @@ function render(){
   const v = $('#view');
   if (!db) { v.innerHTML = bootView(); return; }
   if (!Object.values(ready).every(Boolean)) return;
-  if (staffMode() && !meObj()) { v.innerHTML = lockView(); return; }
   if (TABS.find(t=>t[0]===tab)?.[2] > rank()) tab = 'overview';
   const banner = readOnly ? `<div class="banner">You can view these records but not change them. Ask the shop owner for edit access.</div>` : '';
   v.innerHTML = banner + ({overview, sell, stock, plans, warranty, customers, sales, reports, settings}[tab] || overview)();
-}
-
-/* ================= Lock screen ================= */
-function lockView(){
-  const st = activeStaff();
-  if (pinFor && S.staff[pinFor]) { const p = S.staff[pinFor];
-    return `<div class="lock"><span class="kicker">Sign in to the till</span>${avatarN(p.id,p.name).replace('class="av"','class="av" style="margin:0 auto;width:64px;height:64px;font-size:22px;border-radius:18px;background:'+avColor(p.id)+'"')}<h2>${esc(p.name)}</h2>
-      <form id="pinForm" class="stack" style="gap:12px;max-width:300px;margin:0 auto;width:100%"><label for="pinIn">PIN<input id="pinIn" class="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" required></label>
-      <span class="err" id="pinErr" role="alert"></span><button class="go" type="submit" style="padding:14px">Open the till</button><button type="button" class="link" data-pinback>Choose someone else</button></form></div>`; }
-  return `<div class="lock"><span class="kicker">${esc(S.settings.name)}</span><h2>Who’s on the till?</h2><p class="muted" style="margin:0">Pick your name, then enter your PIN. Every sale and payment is recorded under the person signed in.</p>
-    <div class="staffgrid">${st.map(p=>`<button data-pick="${p.id}">${avatarN(p.id,p.name)}<b>${esc(p.name)}</b><span class="sub rolepill">${esc(p.role)}</span></button>`).join('')}</div></div>`;
 }
 
 /* ================= Today ================= */
@@ -915,7 +903,7 @@ async function downloadCsv(){
 /* ================= Settings & staff ================= */
 function settings(){
   const st = list(S.staff).sort((a,b)=>(a.active===false)-(b.active===false)||a.name.localeCompare(b.name));
-  const ownerCan = !staffMode() ? true : can('staff');
+  const ownerCan = can('staff');
   return head('Settings') + `
   <div class="cols">
     <section class="card"><div class="cardhead"><h3>Shop details</h3></div>
@@ -925,41 +913,38 @@ function settings(){
         <label for="st_cc">Phone country code<input id="st_cc" inputmode="numeric" value="${esc(S.settings.country||'')}" placeholder="233" ${can('settings')?'':'disabled'}><span class="sub" style="font-weight:400">Used to open WhatsApp from local numbers like 024…</span></label>
       </div>${can('settings')?'<button class="primary" type="submit" style="align-self:flex-start">Save details</button>':'<span class="sub">Only the owner can change these.</span>'}</form>
     </section>
-    <section class="card"><div class="cardhead"><h3>Staff and PINs</h3>${ownerCan?`<button class="small primary" data-staff="">Add staff</button>`:''}</div>
-      ${st.length ? `<div class="people">${st.map(p=>`<div class="person" style="${p.active===false?'opacity:.55':''}">${avatarN(p.id,p.name)}<div class="who"><b>${esc(p.name)}${p.id===me?' · you':''}</b><span class="sub"><span class="rolepill">${esc(p.role)}</span> · discount up to ${Number(p.maxDiscount ?? 0)}%${p.active===false?' · no longer active':''}</span></div>${ownerCan?`<button class="small" data-staff="${p.id}">Edit</button>`:''}</div>`).join('')}</div>`
-        : `<p style="margin:0 0 10px">No staff yet, so anyone who opens this page can do everything.</p><p class="sub" style="margin:0">Add yourself as the owner first, then your sales staff. Once staff exist, each person signs in on the till with a 4-digit PIN, and every sale, payment and refund is recorded under their name.</p>`}
-      <p class="sub" style="margin:16px 0 0">Roles: <b>Sales</b> can sell, take payments and log warranty claims. <b>Manager</b> can also edit items, restock, give returns and see reports. <b>Owner</b> can do everything, including staff and settings.</p>
-      <p class="sub" style="margin:8px 0 0">PINs record who is using the till. The shop password is what keeps the records private, so give it only to people who work at the till.</p>
+    <section class="card"><div class="cardhead"><h3>Staff logins</h3>${ownerCan?`<button class="small primary" data-staff="">Add staff</button>`:''}</div>
+      <div class="people">${st.map(p=>`<div class="person" style="${p.active===false?'opacity:.55':''}">${avatarN(p.id,p.name)}<div class="who"><b>${esc(p.name)}${p.id===me?' · you':''}</b><span class="sub"><span class="mono">${esc(p.username||'')}</span> · <span class="rolepill">${esc(p.role)}</span> · discount up to ${Number(p.maxDiscount ?? 0)}%${p.active===false?' · login turned off':''}</span></div>${ownerCan?`<button class="small" data-staff="${p.id}">Edit</button>`:''}</div>`).join('') || '<div class="empty">No staff yet.</div>'}</div>
+      <p class="sub" style="margin:16px 0 0">Everyone signs in with their own username and password, and every sale, payment and refund is recorded under their name. <b>Sales</b> can sell, take payments and log warranty claims. <b>Manager</b> can also edit items, restock, give returns and see reports. <b>Owner</b> can do everything, including staff logins and shop settings.</p>
     </section>
   </div>
   <div class="cols">
-    <section class="card"><div class="cardhead"><h3>This device</h3></div>
-      <p class="sub" style="margin:0 0 14px">This device stays signed in for 30 days. Add the app to the home screen from your browser’s menu to open it like an app.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">${can('settings')?'<button data-changepw>Change shop password</button>':''}<button data-signout>Sign this device out</button></div>
+    <section class="card"><div class="cardhead"><h3>My login</h3></div>
+      <p class="sub" style="margin:0 0 14px">Signed in as <b class="mono">${esc(meObj()?.username||'')}</b>. This device stays signed in for 30 days. Add the app to the home screen from your browser’s menu to open it like an app.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button data-changepw>Change my password</button><button data-signout>Sign out</button></div>
     </section>
   </div>`;
 }
 function staffForm(id){
-  const p = id ? S.staff[id] : { name:'', role: staffMode() ? 'sales' : 'owner', maxDiscount: staffMode()?5:100, active:true };
-  const first = !staffMode() && !id;
-  modal(mhead(id?'Edit staff':'Add staff','Cancel') + `
+  const p = id ? S.staff[id] : { name:'', username:'', role:'sales', maxDiscount:5, active:true };
+  const self = id && id === me;
+  modal(mhead(id?'Edit staff login':'Add staff login','Cancel') + `
   <form id="staffForm" class="stack" style="gap:18px"><div class="fields">
-    <label for="sf_name" class="full">Name<input id="sf_name" required value="${esc(p.name)}"></label>
-    <label for="sf_role">Role<select id="sf_role" ${first?'disabled':''}>${['sales','manager','owner'].map(r=>`<option value="${r}" ${p.role===r?'selected':''}>${r[0].toUpperCase()+r.slice(1)}</option>`).join('')}</select></label>
+    <label for="sf_name" class="full">Full name<input id="sf_name" required maxlength="80" value="${esc(p.name)}"></label>
+    <label for="sf_user">Username<input id="sf_user" class="mono" required pattern="[A-Za-z0-9._-]{3,30}" autocomplete="off" autocapitalize="none" value="${esc(p.username||'')}" ${id?'disabled':''}></label>
+    <label for="sf_role">Role<select id="sf_role" ${self?'disabled':''}>${['sales','manager','owner'].map(r=>`<option value="${r}" ${p.role===r?'selected':''}>${r[0].toUpperCase()+r.slice(1)}</option>`).join('')}</select></label>
     <label for="sf_max">Largest discount (%)<input id="sf_max" type="number" min="0" max="100" value="${esc(p.maxDiscount ?? 0)}"></label>
-    <label for="sf_pin" class="full">${id?'New PIN (leave blank to keep the current one)':'PIN, 4 to 6 digits'}<input id="sf_pin" class="mono" type="password" inputmode="numeric" pattern="[0-9]{4,6}" ${id?'':'required'} autocomplete="new-password"></label>
-    ${id && id!==me ? `<label class="check full"><input type="checkbox" id="sf_active" ${p.active!==false?'checked':''}>Can sign in to the till</label>` : ''}
-  </div>${first?`<p class="sub" style="margin:0">The first person added is the owner. After saving you will sign in with this PIN.</p>`:''}<span class="err" id="sfErr" role="alert"></span>
+    <label for="sf_pw">${id?'New password (leave blank to keep it)':'Password, at least 8 characters'}<input id="sf_pw" type="password" minlength="8" ${id?'':'required'} autocomplete="new-password"></label>
+    ${id && !self ? `<label class="check full"><input type="checkbox" id="sf_active" ${p.active!==false?'checked':''}>Can sign in</label>` : ''}
+  </div>${id?'<p class="sub" style="margin:0">Setting a new password signs this person out on every device.</p>':'<p class="sub" style="margin:0">Give the username and password to the staff member. They can change the password after signing in.</p>'}<span class="err" id="sfErr" role="alert"></span>
   <button class="primary" type="submit">Save</button></form>`);
   $('#staffForm').addEventListener('submit', async e => { e.preventDefault();
-    const pin = $('#sf_pin').value.trim(); if (pin && !/^\d{4,6}$/.test(pin)) { $('#sfErr').textContent = 'Use 4 to 6 digits for the PIN.'; return; }
-    const role = first ? 'owner' : $('#sf_role').value;
-    const owners = activeStaff().filter(s=>s.role==='owner' && s.id!==id);
-    const active = $('#sf_active') ? $('#sf_active').checked : true;
-    if (id && S.staff[id].role==='owner' && (role!=='owner' || !active) && !owners.length) { $('#sfErr').textContent = 'Keep at least one active owner.'; return; }
-    const ref = id ? db.collection('staff').doc(id) : db.collection('staff').doc();
-    const data = { id: ref.id, name: $('#sf_name').value.trim(), role, maxDiscount: Math.min(100, Math.max(0, Number($('#sf_max').value)||0)), active, pinHash: pin ? await hashPin(pin) : (S.staff[id]?.pinHash || '') };
-    if (await write(()=>ref.set(data), 'Staff saved')) { if (first) setMe(ref.id); closeModal(); render(); }
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+    const payload = id
+      ? { op:'update', id, name: $('#sf_name').value.trim(), role: self ? undefined : $('#sf_role').value, maxDiscount: Number($('#sf_max').value)||0, active: $('#sf_active') ? $('#sf_active').checked : undefined, password: $('#sf_pw').value || undefined }
+      : { op:'create', name: $('#sf_name').value.trim(), username: $('#sf_user').value.trim(), role: $('#sf_role').value, maxDiscount: Number($('#sf_max').value)||0, password: $('#sf_pw').value };
+    try { await db.users(payload); toast(id ? 'Staff login saved' : 'Staff login added'); closeModal(); render(); }
+    catch(x){ $('#sfErr').textContent = x.message || 'Could not save.'; btn.disabled = false; }
   });
 }
 
@@ -1252,9 +1237,6 @@ document.addEventListener('click', async e => {
   if (d.tab){ tab = d.tab; ui.q=''; ui.cat='all'; try { localStorage.setItem('shopTab', tab); } catch(x){} closeModal(); render(); window.scrollTo(0,0); return; }
   if ('close' in d) return closeModal();
   if ('more' in d) return moreSheet();
-  if ('switch' in d){ setMe(null); pinFor = null; closeModal(); return render(); }
-  if (d.pick){ pinFor = d.pick; render(); setTimeout(()=>$('#pinIn')?.focus(), 30); return; }
-  if ('pinback' in d){ pinFor = null; return render(); }
   if (d.cat){ ui.cat = d.cat; return render(); }
   if (d.add){ const p = S.products[d.add]; const ex = cart.items.find(i=>i.productId===p.id);
     if (ex){ if (ex.qty < p.stock) ex.qty++; else toast('Only '+p.stock+' on the shelf'); } else cart.items.push({ productId:p.id, name:p.brand+' '+p.name, price:p.price, qty:1, warrantyMonths:p.warrantyMonths });
@@ -1283,7 +1265,7 @@ document.addEventListener('click', async e => {
   if ('csv' in d) return downloadCsv();
   if (d.print) return printReceipt(d.print);
   if ('retry' in d) return boot();
-  if ('signout' in d){ API.setToken(null); setMe(null); signedOut(); BOOT.msg = ''; return render(); }
+  if ('signout' in d){ API.setToken(null); setMe(null); signedOut(); BOOT.msg = ''; closeModal(); return render(); }
   if ('changepw' in d) return passwordForm();
   if (d.copy){ const el = document.getElementById(d.copy); const txt = el.textContent;
     try { await navigator.clipboard.writeText(txt); toast('Copied'); }
@@ -1291,9 +1273,6 @@ document.addEventListener('click', async e => {
   }
 });
 document.addEventListener('submit', async e => {
-  if (e.target.id === 'pinForm') { e.preventDefault(); const p = S.staff[pinFor]; const h = await hashPin($('#pinIn').value.trim());
-    if (p && h === p.pinHash) { setMe(p.id); pinFor = null; toast('Welcome, ' + p.name.split(' ')[0]); render(); }
-    else { $('#pinErr').textContent = 'That PIN is not right. Try again.'; $('#pinIn').value=''; $('#pinIn').focus(); } }
   if (e.target.id === 'setForm') { e.preventDefault();
     await write(()=>db.doc('settings/shop').set({ name:$('#st_name').value.trim(), currency:$('#st_cur').value.trim(), country:$('#st_cc').value.replace(/\D/g,'') }), 'Details saved'); }
 });
@@ -1338,7 +1317,7 @@ const API = {
   }
 };
 function setOffline(v){ if (BOOT.offline === v) return; BOOT.offline = v; const b = document.getElementById('netBanner'); if (b) b.hidden = !v; }
-function signedOut(){ API.setToken(null); store?.stop(); db = null; store = null; BOOT.phase = 'login'; BOOT.msg = 'You were signed out. Enter the shop password to continue.'; for (const k in ready) ready[k] = false; closeModal(); render(); }
+function signedOut(){ API.setToken(null); store?.stop(); db = null; store = null; BOOT.phase = 'login'; BOOT.msg = 'You were signed out. Sign in again to continue.'; setMe(null); for (const k in ready) ready[k] = false; closeModal(); render(); }
 
 /* A small client store with the same calls the app already makes (collection, doc, onSnapshot, acquire),
    kept in step with the server by polling. */
@@ -1373,6 +1352,7 @@ function makeStore(){
     collection: col => ({ path: col, doc: id => docRef(col, id || newId()),
       onSnapshot(next, err){ const l = { col, run: () => next({ docs: Object.entries(data[col]||{}).map(([id,d]) => snap(id, d)) }) }; listeners.push(l); if (first) l.run(); return () => listeners.splice(listeners.indexOf(l), 1); } }),
     doc: path => { const [c, i] = path.split('/'); return docRef(c, i); },
+    async users(payload){ const j = await API.call('users', payload); apply(j.docs); fire(new Set(['staff'])); return j; },
     async start(){ await pull(); loop(); },
     stop(){ stopped = true; clearTimeout(timer); },
   };
@@ -1385,17 +1365,20 @@ function bootView(){
   if (BOOT.phase === 'loading') return card(`<h2>Opening the till…</h2>`);
   if (BOOT.phase === 'error') return card(`<h2>Can’t reach the shop server</h2><p class="muted" style="margin:0">${esc(BOOT.msg || 'Check the internet connection, then try again.')}</p><button class="primary" data-retry style="align-self:center">Try again</button>`);
   if (BOOT.phase === 'nodb') return card(`<h2>Connect the database</h2><div class="card" style="text-align:left"><p style="margin-top:0">This app is deployed, but no database is connected to it yet.</p><ol style="margin:0;padding-left:20px;line-height:1.7"><li>Open this project on vercel.com.</li><li>Go to <b>Storage</b> and connect a <b>Neon</b> Postgres database.</li><li>Redeploy the project, then reload this page.</li></ol></div>`);
-  if (BOOT.phase === 'setup') return card(`<h2>Set up your shop</h2><p class="muted" style="margin:0">Choose the password your till devices will sign in with. You need the setup code you were given with this app.</p>
+  if (BOOT.phase === 'setup') return card(`<h2>Set up your shop</h2><p class="muted" style="margin:0">Create the owner login. You need the setup code you were given with this app. Staff logins are added later in Settings.</p>
     <form id="setupForm" class="card stack" style="gap:14px;text-align:left">
-      <label for="su_code">Setup code<input id="su_code" class="mono" autocomplete="off" required></label>
-      <label for="su_pw">Shop password<input id="su_pw" type="password" minlength="8" autocomplete="new-password" required></label>
-      <label for="su_pw2">Type it again<input id="su_pw2" type="password" minlength="8" autocomplete="new-password" required></label>
+      <label for="su_code">Setup code<input id="su_code" class="mono" autocomplete="off" autocapitalize="characters" required></label>
+      <label for="su_name">Your name<input id="su_name" autocomplete="name" maxlength="80" required></label>
+      <label for="su_user">Username<input id="su_user" class="mono" autocomplete="username" autocapitalize="none" pattern="[A-Za-z0-9._-]{3,30}" required placeholder="for example kweku"></label>
+      <label for="su_pw">Password<input id="su_pw" type="password" minlength="8" autocomplete="new-password" required></label>
+      <label for="su_pw2">Type the password again<input id="su_pw2" type="password" minlength="8" autocomplete="new-password" required></label>
       <label class="check"><input type="checkbox" id="su_seed" checked>Start with the sample records from the prototype</label>
       <span class="err" id="suErr" role="alert"></span>
       <button class="go" type="submit" style="padding:14px">Set up the shop</button></form>`);
-  return card(`<h2>Sign in to the till</h2>${BOOT.msg?`<p class="muted" style="margin:0">${esc(BOOT.msg)}</p>`:''}
+  return card(`<h2>Sign in</h2>${BOOT.msg?`<p class="muted" style="margin:0">${esc(BOOT.msg)}</p>`:''}
     <form id="loginForm" class="card stack" style="gap:14px;text-align:left;max-width:380px;margin:0 auto;width:100%">
-      <label for="li_pw">Shop password<input id="li_pw" type="password" autocomplete="current-password" required></label>
+      <label for="li_user">Username<input id="li_user" class="mono" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
+      <label for="li_pw">Password<input id="li_pw" type="password" autocomplete="current-password" required></label>
       <span class="err" id="liErr" role="alert"></span>
       <button class="go" type="submit" style="padding:14px">Sign in</button></form>`);
 }
@@ -1407,6 +1390,8 @@ async function boot(){
   if (!st.db) { BOOT.phase = 'nodb'; return render(); }
   if (!st.setup) { BOOT.phase = 'setup'; return render(); }
   if (!API.token) { BOOT.phase = 'login'; return render(); }
+  try { const j = await API.call('me'); setMe(j.user); }
+  catch(e){ if (e.code === 'auth') return; BOOT.phase = 'error'; BOOT.msg = e.message; return render(); }
   await connect();
 }
 async function connect(){
@@ -1421,22 +1406,22 @@ document.addEventListener('submit', async e => {
   if (e.target.id === 'setupForm') { e.preventDefault(); const err = $('#suErr');
     if ($('#su_pw').value !== $('#su_pw2').value) { err.textContent = 'The two passwords are different.'; return; }
     const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
-    try { const j = await API.call('setup', { code: $('#su_code').value.trim(), password: $('#su_pw').value, seed: $('#su_seed').checked }); API.setToken(j.token); toast('Shop set up'); await connect(); }
+    try { const j = await API.call('setup', { code: $('#su_code').value.trim(), name: $('#su_name').value.trim(), username: $('#su_user').value.trim(), password: $('#su_pw').value, seed: $('#su_seed').checked }); API.setToken(j.token); setMe(j.user); toast('Shop set up. Welcome, ' + j.user.name.split(' ')[0]); await connect(); }
     catch(x){ err.textContent = x.message || 'Could not set up the shop.'; btn.disabled = false; } }
   if (e.target.id === 'loginForm') { e.preventDefault(); const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
-    try { const j = await API.call('login', { password: $('#li_pw').value }); API.setToken(j.token); BOOT.msg = ''; await connect(); }
-    catch(x){ $('#liErr').textContent = x.message || 'Could not sign in.'; btn.disabled = false; $('#li_pw').select(); } }
+    try { const j = await API.call('login', { username: $('#li_user').value.trim(), password: $('#li_pw').value }); API.setToken(j.token); setMe(j.user); BOOT.msg = ''; await connect(); }
+    catch(x){ $('#liErr').textContent = x.message || 'Could not sign in.'; btn.disabled = false; $('#li_pw').value = ''; $('#li_pw').focus(); } }
   if (e.target.id === 'pwForm') { e.preventDefault(); const err = $('#pwErr');
     if ($('#pw_new').value !== $('#pw_new2').value) { err.textContent = 'The two new passwords are different.'; return; }
-    try { const j = await API.call('password', { current: $('#pw_cur').value, next: $('#pw_new').value }); API.setToken(j.token); closeModal(); toast('Password changed. Other devices must sign in again.'); }
+    try { const j = await API.call('password', { current: $('#pw_cur').value, next: $('#pw_new').value }); API.setToken(j.token); closeModal(); toast('Password changed'); }
     catch(x){ err.textContent = x.message || 'Could not change the password.'; } }
 });
 function passwordForm(){
-  modal(mhead('Change shop password','Cancel') + `<form id="pwForm" class="stack" style="gap:16px">
+  modal(mhead('Change my password','Cancel') + `<form id="pwForm" class="stack" style="gap:16px">
     <label for="pw_cur">Current password<input id="pw_cur" type="password" autocomplete="current-password" required></label>
     <label for="pw_new">New password<input id="pw_new" type="password" minlength="8" autocomplete="new-password" required></label>
     <label for="pw_new2">New password again<input id="pw_new2" type="password" minlength="8" autocomplete="new-password" required></label>
-    <p class="sub" style="margin:0">Every other device will be signed out and needs the new password.</p>
+    <p class="sub" style="margin:0">Your other devices will be signed out and need the new password.</p>
     <span class="err" id="pwErr" role="alert"></span><button class="primary" type="submit">Change password</button></form>`);
 }
 function printReceipt(id){
@@ -1447,7 +1432,7 @@ function printReceipt(id){
 }
 
 /* ================= Data ================= */
-function safeRender(){ const a = document.activeElement; if (a && a.id && TYPING.includes(a.id) && $('#view').contains(a)) { renderNav(); return; } if ($('#pinIn') && document.activeElement === $('#pinIn')) { renderNav(); return; } const y = scrollY; render(); scrollTo(0,y); }
+function safeRender(){ const a = document.activeElement; if (a && a.id && TYPING.includes(a.id) && $('#view').contains(a)) { renderNav(); return; } const y = scrollY; render(); scrollTo(0,y); }
 if ('serviceWorker' in navigator && location.protocol === 'https:') window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 boot();
 })();
