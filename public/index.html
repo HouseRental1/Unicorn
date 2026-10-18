@@ -1,0 +1,1456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Appliance Shop Counter</title>
+<meta name="description" content="Shop till for a home appliances store">
+<meta name="theme-color" content="#0e3a38">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shop Till">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* Layout: showroom till. Deep-teal sidebar (bottom tab bar on phones) + working canvas.
+   Signature motifs: yellow shelf price tags, a receipt-paper cart, the A–G energy label stripe. */
+:root{
+  --bg:#e9efed; --surface:#ffffff; --sunk:#f1f5f4; --line:#d3dedb; --ink:#0f2629; --muted:#587074;
+  --side:#0e3a38; --side-ink:#e6f2ef; --side-muted:#8fb3ad; --side-hi:#16514d;
+  --accent:#0d7b72; --accent-soft:#d6efeb; --tag:#f6c933; --tag-ink:#1d1a07; --paper:#fffdf7; --paper-ink:#2a2a24;
+  --good:#16804b; --good-soft:#d9f2e4; --warn:#9a6200; --warn-soft:#fbecc8; --bad:#c03424; --bad-soft:#fbe0dc;
+  --av1:#d6efeb; --av2:#fbe7c3; --av3:#e3e0fb; --av4:#fbdcd6;
+  --display:"Bricolage Grotesque","Arial Narrow",system-ui,sans-serif;
+  --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 0 rgb(15 38 41 / .04),0 8px 24px -12px rgb(15 38 41 / .18);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0a1414; --surface:#111e1f; --sunk:#162627; --line:#223737; --ink:#e3eeec; --muted:#8aa6a3;
+  --side:#071010; --side-ink:#e3eeec; --side-muted:#7c9895; --side-hi:#123030;
+  --accent:#4cc9bb; --accent-soft:#123a37; --tag:#f2c230; --tag-ink:#1d1a07; --paper:#1a2526; --paper-ink:#e8efe9;
+  --good:#53c98c; --good-soft:#123323; --warn:#e8b14a; --warn-soft:#382a0e; --bad:#f2735f; --bad-soft:#3e1b16;
+  --av1:#143b37; --av2:#3b2e12; --av3:#25234a; --av4:#3d1f1b; --shadow:0 1px 0 rgb(0 0 0 / .2),0 10px 28px -14px rgb(0 0 0 / .7); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0a1414; --surface:#111e1f; --sunk:#162627; --line:#223737; --ink:#e3eeec; --muted:#8aa6a3;
+  --side:#071010; --side-ink:#e3eeec; --side-muted:#7c9895; --side-hi:#123030;
+  --accent:#4cc9bb; --accent-soft:#123a37; --tag:#f2c230; --tag-ink:#1d1a07; --paper:#1a2526; --paper-ink:#e8efe9;
+  --good:#53c98c; --good-soft:#123323; --warn:#e8b14a; --warn-soft:#382a0e; --bad:#f2735f; --bad-soft:#3e1b16;
+  --av1:#143b37; --av2:#3b2e12; --av3:#25234a; --av4:#3d1f1b; --shadow:0 1px 0 rgb(0 0 0 / .2),0 10px 28px -14px rgb(0 0 0 / .7); color-scheme:dark}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--side)}
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+
+/* Sidebar */
+aside{background:var(--side);color:var(--side-ink);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:24px;padding:24px 16px 20px max(16px,env(safe-area-inset-left,0px));overflow-y:auto}
+.mark{display:flex;flex-direction:column;gap:10px;padding:0 6px}
+.mark .eyebrow{font:600 11px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--side-muted)}
+.mark h1{font:800 27px/1 var(--display);letter-spacing:-.02em;margin:0;text-wrap:balance;overflow-wrap:anywhere}
+.label{display:flex;gap:2px;height:6px}
+.label i{flex:1;border-radius:1px}
+.e-A{background:#0e8a3e}.e-B{background:#4ea53a}.e-C{background:#a7c53a}.e-D{background:#d9b300}.e-E{background:#e78417}.e-F{background:#d9491e}.e-G{background:#c3161c}
+.side-nav{display:flex;flex-direction:column;gap:2px}
+.side-nav button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;color:var(--side-muted);font:600 15px var(--body);padding:11px 12px;border-radius:8px;cursor:pointer}
+.side-nav button svg{width:20px;height:20px;flex:none}
+.side-nav button:hover{color:var(--side-ink);background:var(--side-hi)}
+.side-nav button[aria-current="page"]{color:var(--side-ink);background:var(--side-hi);box-shadow:inset 3px 0 0 var(--tag)}
+.side-nav .count{margin-left:auto;font:600 12px var(--body);background:var(--bad);color:#fff;border-radius:999px;padding:2px 7px}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px;padding:0 6px}
+.till{border:1px solid var(--side-hi);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:4px}
+.till .k{font:600 11px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--side-muted)}
+.till .v{font:700 24px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.till .s{font-size:12px;color:var(--side-muted)}
+.side-foot button{background:none;border:1px solid var(--side-hi);color:var(--side-muted);font:600 13px var(--body);padding:9px 12px;border-radius:8px;cursor:pointer}
+.side-foot button:hover{color:var(--side-ink)}
+
+/* Main canvas */
+main{min-width:0;padding-block:28px 64px;padding-left:max(28px,env(safe-area-inset-left,0px));padding-right:max(28px,env(safe-area-inset-right,0px))}
+.inner{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pagehead .date{font:600 12px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pagehead h2{font:800 clamp(28px,4vw,40px)/1.02 var(--display);letter-spacing:-.025em;margin:4px 0 0;text-wrap:balance}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+h3{font:700 18px/1.2 var(--display);margin:0;letter-spacing:-.01em}
+.kicker{font:600 11px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)} .sub{font-size:13px;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0;box-shadow:var(--shadow)}
+.cardhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:22px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:22px;min-width:0}
+
+/* Today hero */
+.hero{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);overflow:hidden}
+.hero .main{padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.big{font:800 clamp(38px,6vw,60px)/.95 var(--display);letter-spacing:-.035em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.big small{font-size:.42em;letter-spacing:0;color:var(--muted);font-weight:700;margin-right:6px}
+.split{display:flex;height:14px;border-radius:4px;overflow:hidden;gap:2px;background:var(--sunk)}
+.split i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend b{font-weight:600;font-variant-numeric:tabular-nums}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.m-cash{background:var(--accent)} .m-momo{background:var(--tag)} .m-card{background:#7c6ee6} .m-transfer{background:#3f8fd8} .m-deposit{background:#e07a4a} .m-plan{background:var(--good)}
+.hero .side{background:var(--sunk);border-left:1px solid var(--line);display:grid;grid-template-rows:repeat(3,1fr)}
+.stat{padding:16px 22px;display:flex;flex-direction:column;justify-content:center;gap:2px;border-bottom:1px solid var(--line);min-width:0}
+.stat:last-child{border-bottom:0}
+.stat .v{font:700 24px/1.1 var(--display);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+
+/* People rows */
+.people{display:flex;flex-direction:column}
+.person{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.person:last-child{border-bottom:0}
+.person .who{flex:1;min-width:0}
+.person .who b{display:block;font-weight:600}
+.av{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font:700 15px var(--display);flex:none;color:var(--ink)}
+.acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--body);padding:6px 9px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.plain{background:var(--sunk);color:var(--muted)} .pill.acc{background:var(--accent-soft);color:var(--accent)}
+.energy{display:inline-flex;align-items:center;font:800 12px/1 var(--display);color:#fff;padding:4px 12px 4px 7px;clip-path:polygon(0 0,80% 0,100% 50%,80% 100%,0 100%);min-width:30px}
+
+/* Buttons & inputs */
+button,.btn{font:600 14px/1 var(--body);border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:11px 15px;cursor:pointer;transition:border-color .15s,background .15s}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+button.primary:hover{background:var(--accent);border-color:var(--accent)}
+button.go{background:var(--tag);border-color:var(--tag);color:var(--tag-ink);font-weight:700}
+button.go:hover{filter:brightness(1.05);border-color:var(--tag)}
+button.small{padding:8px 11px;font-size:13px;border-radius:8px}
+button.link{border:0;background:none;color:var(--accent);padding:0;font-weight:600}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{font:inherit;resize:vertical;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.search{position:relative;width:260px;max-width:100%}
+.search input{padding-left:36px;background:var(--surface)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)}
+label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fields .full{grid-column:1/-1}
+.seg{display:inline-flex;flex-wrap:wrap;gap:4px;background:var(--sunk);border:1px solid var(--line);border-radius:12px;padding:4px}
+.seg button{border:0;background:none;padding:8px 12px;font-size:13px;border-radius:8px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
+
+/* Shelf of products */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{border-radius:999px;padding:7px 13px;font-size:13px}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:14px}
+.prod{position:relative;text-align:left;display:flex;flex-direction:column;gap:10px;padding:16px 14px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);font-weight:400;box-shadow:var(--shadow);min-width:0}
+.prod:hover:not(:disabled){border-color:var(--accent);transform:translateY(-1px)}
+.prod .glyph{width:46px;height:46px;border-radius:12px;background:var(--sunk);display:grid;place-items:center;color:var(--accent)}
+.prod .glyph svg{width:26px;height:26px}
+.prod .nm{display:flex;flex-direction:column;gap:2px;min-width:0}
+.prod .nm b{font:700 16px/1.15 var(--display);color:var(--ink)}
+.prod .foot{display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-top:auto}
+.tag{position:relative;background:var(--tag);color:var(--tag-ink);font:700 15px/1 var(--display);font-variant-numeric:tabular-nums;padding:7px 10px 7px 16px;clip-path:polygon(9px 0,100% 0,100% 100%,9px 100%,0 50%);white-space:nowrap}
+.tag::before{content:"";position:absolute;left:6px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--surface)}
+.left{font-size:12px;color:var(--muted);text-align:right;line-height:1.3}
+.left.low{color:var(--warn);font-weight:600} .left.out{color:var(--bad);font-weight:600}
+.prod.out{opacity:.55}
+.prod .e{position:absolute;top:14px;right:0}
+
+/* Receipt-paper cart */
+.receipt-wrap{position:sticky;top:24px;filter:drop-shadow(0 10px 18px rgb(15 38 41 / .16))}
+.receipt-paper{background:var(--paper);color:var(--paper-ink);padding:22px 20px 20px;border-radius:4px 4px 0 0;display:flex;flex-direction:column;gap:14px}
+.receipt-wrap::after{content:"";display:block;height:10px;background:radial-gradient(circle at 50% 100%,transparent 6px,var(--paper) 6.5px) 0 0/14px 10px repeat-x}
+.rhead{text-align:center;font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;gap:3px;padding-bottom:12px;border-bottom:1px dashed var(--line)}
+.rhead b{font:800 20px/1.1 var(--display);letter-spacing:-.01em;text-transform:none}
+.rline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;font:400 13px/1.35 var(--mono);padding:8px 0;border-bottom:1px dashed var(--line)}
+.rline .n{font-weight:600}
+.qty{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.qty button{border:0;border-radius:0;padding:4px 10px;background:none;color:inherit}
+.qty span{min-width:22px;text-align:center}
+.rtotal{display:flex;justify-content:space-between;align-items:baseline;font:800 26px var(--display);font-variant-numeric:tabular-nums;padding-top:4px;border-top:2px solid var(--paper-ink)}
+.rnote{font:400 13px/1.45 var(--mono);background:var(--sunk);padding:10px 12px;border-radius:8px}
+.rempty{font:400 13px var(--mono);text-align:center;color:var(--muted);padding:18px 0;border-bottom:1px dashed var(--line)}
+.methods{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px}
+.methods button{display:flex;align-items:center;gap:8px;padding:9px 10px;font-size:13px;background:var(--surface)}
+.methods button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+
+/* Plans as payment strips */
+.plans{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+.plan{display:flex;flex-direction:column;gap:14px}
+.plan.overdue{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.plan .top{display:flex;gap:12px;align-items:center}
+.plan .top .who{flex:1;min-width:0}
+.plan .top b{font:700 17px/1.15 var(--display)}
+.strip{display:flex;gap:3px}
+.strip i{flex:1;height:22px;border-radius:4px;background:var(--sunk);border:1px solid var(--line)}
+.strip i.paid{background:var(--accent);border-color:var(--accent)}
+.strip i.dep{background:var(--ink);border-color:var(--ink)}
+.strip i.part{background:linear-gradient(90deg,var(--accent) 50%,var(--sunk) 50%);border-color:var(--accent)}
+.strip i.miss{background:var(--bad-soft);border-color:var(--bad)}
+.figs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.figs div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.figs b{font:700 clamp(13px,3.4vw,16px) var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.plan .acts{justify-content:space-between}
+
+/* Tables */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--sunk)}
+td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--sunk)}
+td.r,th.r{text-align:right}
+.tcard{padding:0;overflow:hidden}
+.itemcell{display:flex;align-items:center;gap:12px;min-width:200px}
+.itemcell .glyph{width:38px;height:38px;border-radius:10px;background:var(--sunk);display:grid;place-items:center;color:var(--accent);flex:none}
+.itemcell .glyph svg{width:22px;height:22px}
+.meter{width:90px;height:6px;border-radius:3px;background:var(--sunk);overflow:hidden;display:inline-block;vertical-align:middle;margin-left:8px}
+.meter i{display:block;height:100%;background:var(--accent)}
+.meter.low i{background:var(--warn)} .meter.out i{background:var(--bad)}
+.mono{font-family:var(--mono);font-size:13px}
+
+.empty{padding:32px 12px;text-align:center;color:var(--muted)}
+.banner{background:var(--warn-soft);color:var(--warn);padding:12px 16px;border-radius:12px;font-weight:600}
+.reorder{display:flex;flex-direction:column;gap:10px}
+.reorder .r{display:flex;align-items:center;gap:12px}
+.reorder .r .who{flex:1;min-width:0}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgb(6 18 18 / .6);backdrop-filter:blur(3px);z-index:40;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:max(28px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 28px max(16px,env(safe-area-inset-left,0px))}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:18px;width:100%;max-width:560px;padding:24px;display:flex;flex-direction:column;gap:18px;box-shadow:0 30px 60px -20px rgb(0 0 0 / .45)}
+.modal h2{font:800 24px/1.1 var(--display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.mhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.printed{font:400 13px/1.5 var(--mono);white-space:pre-wrap;background:var(--paper);color:var(--paper-ink);padding:18px;border-radius:6px;border:1px dashed var(--line);overflow-x:auto}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sched{display:flex;flex-direction:column}
+.sched .s{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.sched .s:last-child{border-bottom:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:12px 18px;border-radius:12px;font-weight:600;z-index:50;box-shadow:var(--shadow)}
+
+/* Phone: sidebar becomes a top brand bar + bottom tab bar */
+.mobilebar,.tabbar{display:none}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  aside{display:none}
+  .mobilebar{display:flex;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--side);color:var(--side-ink);align-items:center;justify-content:space-between;gap:12px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .mobilebar b{font:800 19px/1.1 var(--display);letter-spacing:-.01em;min-width:0;overflow-wrap:anywhere}
+  .mobilebar button{background:none;border:1px solid var(--side-hi);color:var(--side-muted);padding:7px 10px;font-size:12px}
+  .tabbar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--side);padding:6px max(4px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(4px,env(safe-area-inset-left,0px))}
+  .tabbar button{background:none;border:0;color:var(--side-muted);display:flex;flex-direction:column;align-items:center;gap:3px;font:600 10px var(--body);padding:6px 2px;border-radius:8px;position:relative}
+  .tabbar button svg{width:21px;height:21px}
+  .tabbar button[aria-current="page"]{color:var(--tag)}
+  .tabbar .count{position:absolute;top:2px;right:calc(50% - 20px);background:var(--bad);color:#fff;font-size:10px;border-radius:999px;padding:1px 5px}
+  main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px calc(96px + env(safe-area-inset-bottom,0px))}
+  .cols,.hero{grid-template-columns:minmax(0,1fr)}
+  .hero .side{border-left:0;border-top:1px solid var(--line);grid-template-rows:none;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .stat{border-bottom:0;border-right:1px solid var(--line);padding:14px}
+  .stat:last-child{border-right:0}
+  .stat .v{font-size:17px}
+  .receipt-wrap{position:static}
+  .search{width:100%}
+}
+@media (max-width:520px){
+  .fields{grid-template-columns:minmax(0,1fr)}
+  .plans{grid-template-columns:minmax(0,1fr)}
+  .shelf{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .prod{padding:12px}
+  .hero .side{grid-template-columns:minmax(0,1fr)}
+  .stat{border-right:0;border-bottom:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:no-preference){
+  .toast{animation:up .22s ease-out} @keyframes up{from{transform:translate(-50%,10px);opacity:0}}
+  .prod{transition:transform .15s,border-color .15s}
+}
+
+/* v4 additions */
+.onTill{display:flex;align-items:center;gap:10px;border:1px solid var(--side-hi);border-radius:10px;padding:10px 12px}
+.onTill .av{width:32px;height:32px;border-radius:9px;font-size:13px}
+.onTill .who{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.onTill .who b{font-size:14px;color:var(--side-ink)}
+.onTill .who span{font-size:12px;color:var(--side-muted)}
+.onTill button{padding:6px 9px;font-size:12px}
+.mobilebar .right{display:flex;gap:6px;align-items:center}
+@media (max-width:900px){ .tabbar{grid-template-columns:repeat(5,minmax(0,1fr))} }
+.sheet{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sheet button{display:flex;align-items:center;gap:10px;padding:14px;font-size:15px}
+.sheet button svg{width:20px;height:20px;color:var(--accent)}
+.lock{max-width:560px;margin:4vh auto 0;display:flex;flex-direction:column;gap:18px;text-align:center}
+.lock h2{font:800 34px/1.05 var(--display);letter-spacing:-.02em;margin:0}
+.staffgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.staffgrid button{display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 12px;border-radius:14px;box-shadow:var(--shadow)}
+.staffgrid .av{width:54px;height:54px;border-radius:16px;font-size:19px}
+.pin{font:600 28px var(--mono);letter-spacing:.5em;text-align:center;padding:14px}
+.discrow{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
+.discrow .seg{padding:3px}
+.discrow .seg button{padding:7px 10px}
+.rline.minus span{color:var(--good)}
+.err{color:var(--bad);font-size:13px;font-weight:600}
+.units{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.units label{flex-direction:row;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer}
+.units label:last-child{border-bottom:0}
+.units input{width:18px;height:18px;flex:none;accent-color:var(--accent)}
+.units .done{color:var(--muted);cursor:default}
+.check{flex-direction:row!important;align-items:center;gap:10px;color:var(--ink)!important;font-weight:500!important}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+a.btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+a.btn.wa{background:#1f9d55;border-color:#1f9d55;color:#fff}
+a.btn.wa:hover{filter:brightness(1.07)}
+.wcard{display:flex;flex-direction:column;gap:12px}
+.wtop{display:flex;gap:14px;align-items:center}
+.wtop .glyph{width:46px;height:46px;border-radius:12px;background:var(--sunk);display:grid;place-items:center;color:var(--accent);flex:none}
+.wtop .glyph svg{width:26px;height:26px}
+.wtop .who{flex:1;min-width:0}
+.wtop b{font:700 17px/1.15 var(--display)}
+.wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.meterw{height:8px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.meterw i{display:block;height:100%;background:var(--good)}
+.meterw.exp i{background:var(--muted)}
+.kpis4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+.kpis4>div{background:var(--surface);padding:18px 20px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpis4 .v{font:800 26px/1.1 var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+@media (max-width:900px){.kpis4{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis4 .v{font-size:20px}}
+.chart{display:flex;flex-direction:column;gap:8px}
+.chart .plot{position:relative;height:180px;display:flex;align-items:flex-end;gap:2px;border-bottom:1px solid var(--line);padding-top:18px}
+.chart .plot i{flex:1;background:var(--accent);border-radius:2px 2px 0 0;min-height:1px;opacity:.9}
+.chart .plot i:hover{opacity:1;background:var(--ink)}
+.chart .plot i.zero{background:var(--line)}
+.chart .ymax{position:absolute;top:0;left:0;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.chart .grid{position:absolute;left:0;right:0;top:18px;border-top:1px dashed var(--line)}
+.chart .x{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.hbars{display:flex;flex-direction:column;gap:10px}
+.hbars .b{display:grid;grid-template-columns:minmax(0,140px) minmax(0,1fr) auto;gap:12px;align-items:center;font-size:14px}
+.hbars .b span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbars .t{height:10px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.hbars .t i{display:block;height:100%;background:var(--accent)}
+.flowtable td,.flowtable th{padding:10px 12px}
+.flowtable input{max-width:160px;margin-left:auto;text-align:right}
+.closed{display:flex;flex-direction:column;gap:6px}
+.rolepill{text-transform:capitalize}
+textarea{min-height:44px}
+#printArea{display:none}
+.netbanner{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));z-index:60;background:var(--bad);color:#fff;padding:8px 14px;border-radius:999px;font-weight:600;font-size:13px}
+@media print{
+  @page{size:80mm auto;margin:4mm}
+  body{background:#fff!important}
+  body>*{display:none!important}
+  body::before{display:none!important}
+  #printArea{display:block!important;white-space:pre-wrap;font:12px/1.4 "IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;color:#000;width:72mm}
+}
+</style>
+</head>
+<body>
+<div class="netbanner" id="netBanner" hidden>Offline. Changes can’t be saved until the connection is back.</div>
+<div class="app">
+  <aside>
+    <div class="mark">
+      <span class="eyebrow">Shop till</span>
+      <h1 id="shopName">Home Appliances</h1>
+      <div class="label" aria-hidden="true"><i class="e-A"></i><i class="e-B"></i><i class="e-C"></i><i class="e-D"></i><i class="e-E"></i><i class="e-F"></i><i class="e-G"></i></div>
+    </div>
+    <nav class="side-nav" id="sideNav" aria-label="Sections"></nav>
+    <div class="side-foot">
+      <div class="till"><span class="k">In the till today</span><span class="v" id="tillV">–</span><span class="s" id="tillS"></span></div>
+      <div id="onTill"></div>
+    </div>
+  </aside>
+  <div class="mobilebar"><b id="shopNameM">Home Appliances</b><div class="right" id="mobileRight"></div></div>
+  <main><div class="inner" id="view"><div class="empty">Opening the shop records…</div></div></main>
+  <nav class="tabbar" id="tabBar" aria-label="Sections"></nav>
+</div>
+<div id="modalRoot"></div>
+
+<script>
+(() => {
+'use strict';
+/* ================= State ================= */
+const COLS = ['products','customers','sales','plans','staff','claims','closes'];
+const S = { products:{}, customers:{}, sales:{}, plans:{}, staff:{}, claims:{}, closes:{}, settings:{ name:'Home Appliances', currency:'GH₵', country:'233' } };
+const ready = Object.fromEntries(COLS.map(c=>[c,false]));
+let db = null, dl = null, tab = 'overview', readOnly = false, me = null, pinFor = null;
+const TAB_ID = 't' + Math.random().toString(36).slice(2,10);
+const freshCart = () => ({ items:[], customerId:'', method:'cash', depositMethod:'cash', deposit:'', count:6, freq:'monthly', discType:'amt', discVal:'', discNote:'' });
+const cart = freshCart();
+const ui = { q:'', cat:'all', planFilter:'open', custQ:'', saleQ:'', wq:'', period:'month' };
+try { const t = localStorage.getItem('shopTab'); if (t) tab = t; me = localStorage.getItem('tillStaff') || null; } catch(e) {}
+
+/* ================= Icons ================= */
+const sv = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const IC = {
+  overview: sv('<path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>'),
+  sell: sv('<path d="M3 4h2l2.4 11h11l2-8H6.2"/><circle cx="9" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/>'),
+  stock: sv('<path d="M3 7.5L12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5l9 4.5 9-4.5M12 12v9"/>'),
+  plans: sv('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 15h3"/>'),
+  warranty: sv('<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>'),
+  customers: sv('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 010 6.8M18.5 14.8c1.5.8 2.6 2.5 3 5.2"/>'),
+  sales: sv('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'),
+  reports: sv('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+  settings: sv('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/>'),
+  more: sv('<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>'),
+  search: sv('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'),
+  wa: sv('<path d="M4 20l1.3-3.8A8 8 0 1112 20a8 8 0 01-3.9-1z"/><path d="M9 9.5c.2 2 2.4 4.3 4.6 4.8l1-1.1 1.6.8c-.2.9-1 1.6-2 1.6-3 0-6.3-3.2-6.3-6.2 0-1 .7-1.8 1.6-2l.8 1.6z"/>'),
+  Refrigerators: sv('<rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M6 9.5h12M9 5.5v2M9 12.5v3"/>'),
+  Freezers: sv('<rect x="2.5" y="7" width="19" height="12" rx="2"/><path d="M2.5 11h19M10 9h4"/><path d="M5 19v2M19 19v2"/>'),
+  Televisions: sv('<rect x="2.5" y="4" width="19" height="13" rx="1.5"/><path d="M8 21h8M12 17v4"/>'),
+  'Washing machines': sv('<rect x="4" y="2.5" width="16" height="19" rx="2"/><circle cx="12" cy="13.5" r="4.5"/><path d="M7 6h2M13 6h4"/>'),
+  'Air conditioners': sv('<rect x="2.5" y="4" width="19" height="8" rx="2"/><path d="M6 9h12"/><path d="M8 15c0 1.5-1 2-1 3.5M12 15v4.5M16 15c0 1.5 1 2 1 3.5"/>'),
+  Cookers: sv('<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="9" cy="7" r="1.4"/><circle cx="15" cy="7" r="1.4"/><rect x="7" y="12" width="10" height="6" rx="1"/>'),
+  Microwaves: sv('<rect x="2.5" y="5" width="19" height="14" rx="2"/><rect x="5" y="8" width="10" height="8" rx="1"/><path d="M18 9v.01M18 12v.01M18 15v.01"/>'),
+  Blenders: sv('<path d="M7 3h10l-1.5 11h-7z"/><path d="M8 14h8l1 7H7z"/><path d="M12 17.5v.01"/>'),
+  Fans: sv('<circle cx="12" cy="9" r="6"/><circle cx="12" cy="9" r="1.3"/><path d="M12 15v6M8 21h8"/>'),
+  Irons: sv('<path d="M3 17h16c1.2 0 2-.8 2-2-.3-4.2-3.7-7-8-7H9"/><path d="M3 17c0-4 2.8-6 6-6h3"/><path d="M8 5h6"/>'),
+  other: sv('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12h6"/>'),
+};
+const glyph = c => IC[c] || IC.other;
+const TABS = [['overview','Today',1],['sell','New sale',1],['stock','Stock',1],['plans','Installments',1],['warranty','Warranty',1],['customers','Customers',1],['sales','Sales log',1],['reports','Reports',5],['settings','Settings',1]];
+const MOBILE = ['overview','sell','stock','plans'];
+const SHORT = { overview:'Today', sell:'Sell', stock:'Stock', plans:'Plans', more:'More' };
+
+/* ================= Helpers ================= */
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN = n => (Number(n)||0).toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+const money = n => esc(S.settings.currency || '') + ' ' + fmtN(n);
+const moneyBig = n => `<small>${esc(S.settings.currency||'')}</small>${fmtN(n)}`;
+const plain = n => (S.settings.currency || '') + ' ' + fmtN(n);
+const round2 = n => Math.round((Number(n)||0)*100)/100;
+const isoOf = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const todayISO = () => isoOf(new Date());
+const parseD = s => { const [y,m,d] = s.slice(0,10).split('-').map(Number); return new Date(y, m-1, d); };
+const fmtD = s => s ? parseD(s).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}) : '';
+const fmtShort = s => s ? parseD(s).toLocaleDateString('en-GB', {day:'numeric', month:'short'}) : '';
+const fmtDT = s => { const d = new Date(s); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+', '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); };
+const dayDiff = (a, b) => Math.round((parseD(b) - parseD(a)) / 86400000);
+const addPeriod = (start, k, freq) => { const d = parseD(start); if (freq === 'weekly') d.setDate(d.getDate()+7*k); else d.setMonth(d.getMonth()+k); return isoOf(d); };
+const METHODS = { cash:'Cash', momo:'Mobile money', card:'Card', transfer:'Bank transfer', installment:'Installment' };
+const PAYM = { cash:'Cash', momo:'Mobile money', card:'Card', transfer:'Bank transfer' };
+const payOptions = sel => Object.entries(PAYM).map(([k,l])=>`<option value="${k}" ${sel===k?'selected':''}>${l}</option>`).join('');
+const list = o => Object.values(o);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const custName = id => S.customers[id]?.name || 'Walk-in customer';
+const initials = n => (n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
+const avColor = s => 'var(--av'+(1+[...(s||'')].reduce((a,c)=>a+c.charCodeAt(0),0)%4)+')';
+const avatarN = (key, name) => `<span class="av" style="background:${avColor(key||name)}">${esc(initials(name))}</span>`;
+const avatar = id => avatarN(id, custName(id));
+const searchBox = (id, ph, val) => `<label class="search" for="${id}" aria-label="${esc(ph)}">${IC.search}<input id="${id}" placeholder="${esc(ph)}" value="${esc(val)}" autocomplete="off"></label>`;
+const serialsOf = p => Array.isArray(p?.serials) ? p.serials : [];
+const parseSerials = t => [...new Set(String(t||'').split(/[\n,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))];
+const serialOwner = (sn, exceptId) => list(S.products).find(p => p.id!==exceptId && serialsOf(p).includes(sn));
+const unitSerials = i => Array.isArray(i.serials) && i.serials.length ? i.serials : String(i.serial||'').split(',').map(x=>x.trim()).filter(Boolean);
+const itemCost = i => Number(i.cost ?? S.products[i.productId]?.cost ?? 0);
+const saleSub = s => Number(s.subtotal ?? s.total);
+const saleDisc = s => Number(s.discount || 0);
+const shareOf = s => saleSub(s) ? s.total / saleSub(s) : 1;
+const retUnits = s => (s.returns||[]).flatMap(r=>r.units||[]);
+const isReturned = (s, ix, u) => retUnits(s).some(x=>x.i===ix && x.u===u);
+const unitCount = s => s.items.reduce((a,i)=>a+i.qty,0);
+const staffName = id => S.staff[id]?.name || (id ? 'Former staff' : '');
+
+/* WhatsApp link: local 0XX numbers get the country code */
+function waLink(phone, text){
+  let d = String(phone||'').replace(/\D/g,''); if (!d) return '';
+  const cc = String(S.settings.country||'').replace(/\D/g,'');
+  if (d.startsWith('00')) d = d.slice(2); else if (d.startsWith('0') && cc) d = cc + d.slice(1);
+  return 'https://wa.me/' + d + '?text=' + encodeURIComponent(text);
+}
+const waBtn = (phone, text, label='WhatsApp') => { const h = waLink(phone, text); return h ? `<a class="btn wa small" href="${esc(h)}" target="_blank" rel="noopener">${IC.wa.replace('<svg','<svg style="width:16px;height:16px"')}${label}</a>` : ''; };
+
+/* ================= Staff & permissions ================= */
+const activeStaff = () => list(S.staff).filter(s=>s.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
+const staffMode = () => activeStaff().length > 0;
+const meObj = () => staffMode() ? (S.staff[me] && S.staff[me].active!==false ? S.staff[me] : null) : { id:'', name:'', role:'owner', maxDiscount:100 };
+const RANK = { owner:9, manager:5, sales:1 };
+const NEED = { sell:1, pay:1, claim:1, close:1, editItems:5, restock:5, returns:5, reports:5, deleteItems:9, staff:9, settings:9 };
+const rank = () => RANK[meObj()?.role] || 1;
+const canSee = a => rank() >= (NEED[a] ?? 9);
+const can = a => !readOnly && canSee(a);
+const myMaxDisc = () => { const m = meObj(); return m ? Number(m.maxDiscount ?? (m.role==='sales'?5:100)) : 0; };
+async function hashPin(pin){
+  const txt = 'appliance-till:' + pin;
+  try { if (!crypto?.subtle) throw 0; const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+  catch(e){ return sha256js(txt); }
+}
+function sha256js(str){
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const bytes=[...new TextEncoder().encode(str)], l=bytes.length*8; bytes.push(0x80); while(bytes.length%64!==56) bytes.push(0);
+  for(let i=7;i>=0;i--) bytes.push(i>3?0:(l>>>(i*8))&255);
+  const H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19], w=new Array(64), r=(x,n)=>(x>>>n)|(x<<(32-n));
+  for(let o=0;o<bytes.length;o+=64){
+    for(let i=0;i<16;i++) w[i]=(bytes[o+i*4]<<24)|(bytes[o+i*4+1]<<16)|(bytes[o+i*4+2]<<8)|bytes[o+i*4+3];
+    for(let i=16;i<64;i++){ const s0=r(w[i-15],7)^r(w[i-15],18)^(w[i-15]>>>3), s1=r(w[i-2],17)^r(w[i-2],19)^(w[i-2]>>>10); w[i]=(w[i-16]+s0+w[i-7]+s1)|0; }
+    let [a,b,c,d,e,f,g,h]=H;
+    for(let i=0;i<64;i++){ const t1=(h+(r(e,6)^r(e,11)^r(e,25))+((e&f)^(~e&g))+K[i]+w[i])|0, t2=((r(a,2)^r(a,13)^r(a,22))+((a&b)^(a&c)^(b&c)))|0; h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0; }
+    H[0]=(H[0]+a)|0; H[1]=(H[1]+b)|0; H[2]=(H[2]+c)|0; H[3]=(H[3]+d)|0; H[4]=(H[4]+e)|0; H[5]=(H[5]+f)|0; H[6]=(H[6]+g)|0; H[7]=(H[7]+h)|0;
+  }
+  return H.map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
+}
+function setMe(id){ me = id; try { id ? localStorage.setItem('tillStaff', id) : localStorage.removeItem('tillStaff'); } catch(e){} }
+
+/* ================= Saving ================= */
+function toast(msg){ const t = document.createElement('div'); t.className='toast'; t.setAttribute('role','status'); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 3200); }
+async function write(fn, okMsg){
+  if (!db) { toast('Sign in to save changes'); return false; }
+  try { await fn(); if (okMsg) toast(okMsg); return true; }
+  catch(e){
+    const c = e && e.code;
+    if (c === 'stale' || c === 'busy') toast(e.message || 'Another till is updating this item. Try again in a moment.');
+    else if (c === 'auth') { /* sign-in screen already shown */ }
+    else if (c === 'invalid_argument') toast(e.message || 'That change could not be saved.');
+    else if (c === 'quota_exceeded') toast('Storage is full. Delete old records to add more.');
+    else toast('Could not save. Check your connection and try again.');
+    return false;
+  }
+}
+/* Short lease on a product so two tills never sell the same unit or miscount stock */
+async function withLock(id){
+  const ref = db.collection('products').doc(id);
+  for (let t = 0; t < 14; t++){
+    let r;
+    try { r = await ref.acquire({ holder: TAB_ID, ttlMs: 2500 }); }
+    catch(e){ if (['capability_removed','capability_disabled','transform_error'].includes(e?.code)) { const s = await ref.get(); return { ref, data: s.exists ? s.data() : null }; } throw e; }
+    if (r && r.acquired) { const s = await ref.get(); return { ref, data: s.exists ? s.data() : null }; }
+    await sleep(180 + Math.random()*220);
+  }
+  throw { code:'busy', message:'Another till is updating this item. Try again in a moment.' };
+}
+
+/* ================= Installment maths ================= */
+function planStats(p){
+  const paid = round2((p.payments||[]).reduce((a,x)=>a+Number(x.amount||0),0));
+  if (p.cancelled) return { paid, balance:0, nextDue:null, status:'cancelled', label:'Returned', cls:'plain', late:0, arrears:0 };
+  const balance = round2(Math.max(0, p.total - paid));
+  const today = todayISO();
+  let dueCount = 0;
+  for (let k=1; k<=p.count; k++) if (addPeriod(p.startDate,k,p.freq) <= today) dueCount++;
+  const expected = round2(Math.min(p.total, p.deposit + p.instalment*dueCount));
+  const covered = Math.min(p.count, Math.floor((paid - p.deposit + 0.01) / p.instalment));
+  const nextDue = covered < p.count ? addPeriod(p.startDate, covered+1, p.freq) : null;
+  let status = 'ontrack', label = 'On track', cls = 'good', late = 0;
+  if (balance <= 0.009) { status='paid'; label='Paid off'; cls='plain'; }
+  else if (paid + 0.01 < expected) { late = dayDiff(nextDue, today); status='overdue'; label = late + (late===1?' day late':' days late'); cls='bad'; }
+  else if (nextDue && dayDiff(today, nextDue) <= 3) { const d = dayDiff(today,nextDue); status='soon'; label = d===0?'Due today':'Due in '+d+(d===1?' day':' days'); cls='warn'; }
+  return { paid, balance, nextDue, status, label, cls, late, arrears: round2(Math.max(0, expected - paid)) };
+}
+function scheduleStates(p){
+  let rest = planStats(p).paid - p.deposit; const t = todayISO(); const out = [];
+  for (let k=1;k<=p.count;k++){ const due = addPeriod(p.startDate,k,p.freq);
+    const s = rest >= p.instalment-0.01 ? 'paid' : rest > 0.01 ? 'part' : (due < t && !p.cancelled) ? 'miss' : 'up';
+    rest -= p.instalment; out.push({due, s}); }
+  return out;
+}
+const overdueCount = () => list(S.plans).filter(p=>planStats(p).status==='overdue').length;
+
+/* ================= Money flows & reports ================= */
+function flow(from, to){
+  const by = { cash:0, momo:0, card:0, transfer:0 }; let refunds = 0, planIn = 0, n = 0, sold = 0;
+  const inR = d => d >= from && d <= to;
+  for (const s of list(S.sales)){
+    const d = s.date.slice(0,10);
+    if (inR(d)) { n++; sold += s.total; if (s.method !== 'installment') by[s.method] = (by[s.method]||0) + s.total; }
+    for (const r of (s.returns||[])) if (inR(r.date)) { by[r.method] = (by[r.method]||0) - r.refund; refunds += r.refund; }
+  }
+  for (const p of list(S.plans)) for (const pay of (p.payments||[])) if (inR(pay.date)) { by[pay.method] = (by[pay.method]||0) + pay.amount; planIn += pay.amount; }
+  for (const k in by) by[k] = round2(by[k]);
+  return { by, refunds: round2(refunds), planIn: round2(planIn), n, sold: round2(sold), total: round2(Object.values(by).reduce((a,b)=>a+b,0)) };
+}
+function metrics(from, to){
+  let gross=0, disc=0, n=0, cogs=0, refunds=0, units=0; const byDay={}, byProd={}, byStaff={}, byCat={};
+  for (const s of list(S.sales)){
+    const d = s.date.slice(0,10), sh = shareOf(s);
+    if (d>=from && d<=to){ n++; gross += s.total; disc += saleDisc(s); byDay[d] = (byDay[d]||0) + s.total;
+      s.items.forEach(i => { const c = itemCost(i)*i.qty; cogs += c; units += i.qty;
+        const k = i.productId || i.name; const bp = byProd[k] || (byProd[k] = { name:i.name, units:0, rev:0, cost:0 }); bp.units += i.qty; bp.rev += i.price*i.qty*sh; bp.cost += c;
+        const cat = S.products[i.productId]?.category || 'Other'; byCat[cat] = (byCat[cat]||0) + i.price*i.qty*sh; });
+      const st = s.staffId || ''; byStaff[st] = (byStaff[st]||0) + s.total; }
+    for (const r of (s.returns||[])) if (r.date>=from && r.date<=to){ refunds += r.refund; byDay[r.date] = (byDay[r.date]||0) - r.refund;
+      if (r.restocked) (r.units||[]).forEach(u => { const i = s.items[u.i]; if (i) { cogs -= itemCost(i); const bp = byProd[i.productId||i.name]; if (bp){ bp.units -= 1; bp.rev -= i.price*sh; bp.cost -= itemCost(i); } } }); }
+  }
+  const net = gross - refunds;
+  return { gross:round2(gross), disc:round2(disc), n, cogs:round2(cogs), refunds:round2(refunds), net:round2(net), profit:round2(net-cogs), units, byDay, byProd, byStaff, byCat };
+}
+function periodRange(p){
+  const t = new Date();
+  if (p==='today') return [isoOf(t), isoOf(t), 'Today'];
+  if (p==='week'){ const d = new Date(t); d.setDate(d.getDate() - (d.getDay()+6)%7); return [isoOf(d), isoOf(t), 'This week']; }
+  if (p==='month') return [isoOf(new Date(t.getFullYear(), t.getMonth(), 1)), isoOf(t), 'This month'];
+  if (p==='last') return [isoOf(new Date(t.getFullYear(), t.getMonth()-1, 1)), isoOf(new Date(t.getFullYear(), t.getMonth(), 0)), 'Last month'];
+  const d = new Date(t); d.setDate(d.getDate()-89); return [isoOf(d), isoOf(t), 'Last 90 days'];
+}
+
+/* ================= Shell ================= */
+function navBtn(k, label, extra=''){ const od = k==='plans' ? overdueCount() : 0;
+  return `<button data-tab="${k}" aria-current="${tab===k?'page':'false'}">${IC[k]}<span>${label}</span>${od?`<span class="count">${od}</span>`:''}${extra}</button>`; }
+function renderNav(){
+  if (db && Object.values(ready).every(Boolean) && staffMode() && !meObj()) { $('#sideNav').innerHTML=''; $('#tabBar').innerHTML=''; $('#tillV').textContent='Locked'; $('#tillS').textContent='Sign in to see today’s takings'; $('#onTill').innerHTML=''; $('#mobileRight').innerHTML=''; const n=S.settings.name||'Home Appliances'; $('#shopName').textContent=n; $('#shopNameM').textContent=n; return; }
+  const vis = TABS.filter(([k,,r]) => rank() >= r || !staffMode() && r<=9);
+  $('#sideNav').innerHTML = vis.map(([k,l])=>navBtn(k,l)).join('');
+  const moreOn = !MOBILE.includes(tab);
+  $('#tabBar').innerHTML = MOBILE.map(k=>navBtn(k, SHORT[k])).join('') + `<button data-more aria-current="${moreOn?'page':'false'}">${IC.more}<span>More</span></button>`;
+  const name = S.settings.name || 'Home Appliances';
+  $('#shopName').textContent = name; $('#shopNameM').textContent = name;
+  const ok = db && Object.values(ready).every(Boolean);
+  const f = ok ? flow(todayISO(), todayISO()) : null;
+  $('#tillV').innerHTML = f ? moneyBig(f.total).replace('<small>','<small style="font-size:.5em;margin-right:4px;color:var(--side-muted)">') : '–';
+  $('#tillS').textContent = f ? `${f.n} ${f.n===1?'sale':'sales'} so far` : '';
+  const m = ok && staffMode() ? meObj() : null;
+  $('#onTill').innerHTML = m ? `<div class="onTill">${avatarN(m.id, m.name)}<span class="who"><b>${esc(m.name)}</b><span class="rolepill">${esc(m.role)}</span></span><button data-switch>Switch</button></div>` : '';
+  $('#mobileRight').innerHTML = m ? `<button data-switch>${esc(m.name.split(' ')[0])} · Switch</button>` : '';
+}
+function head(title, tools=''){
+  const d = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  return `<div class="pagehead"><div><div class="date">${d}</div><h2>${title}</h2></div>${tools?`<div class="tools">${tools}</div>`:''}</div>`;
+}
+function render(){
+  renderNav();
+  const v = $('#view');
+  if (!db) { v.innerHTML = bootView(); return; }
+  if (!Object.values(ready).every(Boolean)) return;
+  if (staffMode() && !meObj()) { v.innerHTML = lockView(); return; }
+  if (TABS.find(t=>t[0]===tab)?.[2] > rank()) tab = 'overview';
+  const banner = readOnly ? `<div class="banner">You can view these records but not change them. Ask the shop owner for edit access.</div>` : '';
+  v.innerHTML = banner + ({overview, sell, stock, plans, warranty, customers, sales, reports, settings}[tab] || overview)();
+}
+
+/* ================= Lock screen ================= */
+function lockView(){
+  const st = activeStaff();
+  if (pinFor && S.staff[pinFor]) { const p = S.staff[pinFor];
+    return `<div class="lock"><span class="kicker">Sign in to the till</span>${avatarN(p.id,p.name).replace('class="av"','class="av" style="margin:0 auto;width:64px;height:64px;font-size:22px;border-radius:18px;background:'+avColor(p.id)+'"')}<h2>${esc(p.name)}</h2>
+      <form id="pinForm" class="stack" style="gap:12px;max-width:300px;margin:0 auto;width:100%"><label for="pinIn">PIN<input id="pinIn" class="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" required></label>
+      <span class="err" id="pinErr" role="alert"></span><button class="go" type="submit" style="padding:14px">Open the till</button><button type="button" class="link" data-pinback>Choose someone else</button></form></div>`; }
+  return `<div class="lock"><span class="kicker">${esc(S.settings.name)}</span><h2>Who’s on the till?</h2><p class="muted" style="margin:0">Pick your name, then enter your PIN. Every sale and payment is recorded under the person signed in.</p>
+    <div class="staffgrid">${st.map(p=>`<button data-pick="${p.id}">${avatarN(p.id,p.name)}<b>${esc(p.name)}</b><span class="sub rolepill">${esc(p.role)}</span></button>`).join('')}</div></div>`;
+}
+
+/* ================= Today ================= */
+function overview(){
+  const t = todayISO(), f = flow(t, t);
+  const open = list(S.plans).map(p=>({p, st:planStats(p)})).filter(x=>!['paid','cancelled'].includes(x.st.status));
+  const owed = open.reduce((a,x)=>a+x.st.balance,0), arrears = open.reduce((a,x)=>a+x.st.arrears,0);
+  const attention = open.filter(x=>x.st.status==='overdue'||x.st.status==='soon').sort((a,b)=>({overdue:0,soon:1}[a.st.status]-{overdue:0,soon:1}[b.st.status])||b.st.late-a.st.late);
+  const low = list(S.products).filter(p => p.stock <= (p.reorderAt ?? 2)).sort((a,b)=>a.stock-b.stock);
+  const stockValue = list(S.products).reduce((a,p)=>a+p.cost*p.stock,0);
+  const recent = list(S.sales).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const parts = Object.entries(f.by).filter(([,v])=>v>0); const pos = parts.reduce((a,[,v])=>a+v,0);
+  const openClaims = list(S.claims).filter(c=>c.status!=='done').length;
+  const closed = S.closes[t];
+  const hr = new Date().getHours();
+  return head('Good ' + (hr<12?'morning':hr<17?'afternoon':'evening') + (meObj()?.name ? ', ' + esc(meObj().name.split(' ')[0]) : '') + '.', can('sell')?`<button class="go" data-tab="sell">${IC.sell.replace('<svg','<svg style="width:18px;height:18px;vertical-align:-4px;margin-right:6px"')}New sale</button>`:'') + `
+  <section class="hero">
+    <div class="main">
+      <span class="kicker">Money in today</span>
+      <div class="big">${moneyBig(f.total)}</div>
+      ${parts.length ? `<div class="split" aria-hidden="true">${parts.map(([k,v])=>`<i class="m-${k}" style="width:${v/pos*100}%"></i>`).join('')}</div>
+      <div class="legend">${parts.map(([k,v])=>`<span><i class="dot m-${k}"></i>${PAYM[k]} <b>${money(v)}</b></span>`).join('')}</div>
+      <p class="sub" style="margin:0">${f.planIn?`Includes ${money(f.planIn)} in plan payments and deposits. `:''}${f.refunds?`${money(f.refunds)} refunded today is taken off. `:''}Close the day below once you have counted the till.</p>`
+      : `<p class="sub" style="margin:0">No money taken yet today. Sales and plan payments will show here as they come in.</p>`}
+    </div>
+    <div class="side">
+      <div class="stat"><span class="kicker">Goods sold today</span><span class="v">${money(f.sold)}</span><span class="sub">${f.n} ${f.n===1?'sale':'sales'}</span></div>
+      <div class="stat"><span class="kicker">Owed on plans</span><span class="v">${money(owed)}</span><span class="sub">${arrears>0?`<span style="color:var(--bad);font-weight:600">${money(arrears)} overdue</span>`:'Nothing overdue'} · ${open.length} open</span></div>
+      <div class="stat"><span class="kicker">Stock at cost</span><span class="v">${money(stockValue)}</span><span class="sub">${list(S.products).reduce((a,p)=>a+p.stock,0)} units on the floor</span></div>
+    </div>
+  </section>
+  <div class="cols">
+    <div class="stack">
+      <section class="card"><div class="cardhead"><h3>Collect from these customers</h3><button class="link" data-tab="plans">All plans</button></div>
+        ${attention.length ? `<div class="people">${attention.map(({p,st})=>`
+          <div class="person">${avatar(p.customerId)}<div class="who"><b>${esc(custName(p.customerId))}</b><span class="sub">${esc(p.productName)} · ${st.status==='overdue'?'owes '+money(st.arrears):'next '+money(p.instalment)}</span></div>
+          <div class="acts"><span class="pill ${st.cls}">${st.label}</span>${waBtn(S.customers[p.customerId]?.phone, reminderText(p), 'Remind')}${can('pay')?`<button class="small primary" data-pay="${p.id}">Take payment</button>`:''}</div></div>`).join('')}</div>`
+        : `<div class="empty">Nobody is late, and no payments fall due in the next three days.</div>`}
+      </section>
+      <section class="card"><div class="cardhead"><h3>Latest sales</h3><button class="link" data-tab="sales">Sales log</button></div>
+        ${recent.length ? `<div class="people">${recent.map(s=>`<div class="person">${avatar(s.customerId)}<div class="who"><b>${esc(s.items.map(i=>i.name).join(', '))}</b><span class="sub">${esc(custName(s.customerId))} · ${fmtDT(s.date)} · ${METHODS[s.method]}${s.staffId?' · '+esc(staffName(s.staffId)):''}</span></div>${retPill(s)}<button class="small" data-receipt="${s.id}"><span class="num">${money(s.total)}</span></button></div>`).join('')}</div>` : `<div class="empty">No sales yet. Record one under New sale.</div>`}
+      </section>
+    </div>
+    <div class="stack">
+      <section class="card"><div class="cardhead"><h3>Close the day</h3>${closed&&can('close')?`<button class="link" data-close-day>Recount</button>`:''}</div>
+        ${closed ? closedSummary(closed) : `<p class="sub" style="margin:0 0 14px">Count the cash drawer and check the mobile money wallet, then record the totals. The app shows any shortfall or extra.</p>${can('close')?`<button class="primary" data-close-day style="width:100%">Count and close today</button>`:''}`}
+      </section>
+      <section class="card"><div class="cardhead"><h3>Reorder soon</h3><button class="link" data-tab="stock">Stock</button></div>
+        ${low.length ? `<div class="reorder">${low.map(p=>`<div class="r"><span class="itemcell" style="min-width:0;flex:1"><span class="glyph">${glyph(p.category)}</span><span class="who" style="min-width:0"><b style="display:block">${esc(p.brand)} ${esc(p.name)}</b><span class="sub">Reorder at ${p.reorderAt ?? 2}</span></span></span><span class="pill ${p.stock===0?'bad':'warn'}">${p.stock===0?'Sold out':p.stock+' left'}</span></div>`).join('')}</div>` : `<div class="empty">Every item is above its reorder level.</div>`}
+      </section>
+      ${openClaims?`<section class="card"><div class="cardhead"><h3>Open warranty claims</h3><button class="link" data-tab="warranty">Warranty</button></div><p style="margin:0"><b class="num">${openClaims}</b> ${openClaims===1?'claim is':'claims are'} waiting to be resolved.</p></section>`:''}
+    </div>
+  </div>`;
+}
+function closedSummary(c){
+  const dc = round2(c.diff?.cash||0), dm = round2(c.diff?.momo||0);
+  const lbl = d => Math.abs(d) < 0.01 ? `<span class="pill good">Balanced</span>` : d < 0 ? `<span class="pill bad">${money(-d)} short</span>` : `<span class="pill warn">${money(d)} over</span>`;
+  return `<div class="closed"><div class="bar"><span>Cash drawer</span>${lbl(dc)}</div><div class="bar"><span>Mobile money</span>${lbl(dm)}</div>
+    <span class="sub">Closed ${fmtDT(c.at)}${c.staffId?' by '+esc(staffName(c.staffId)):''}${c.note?' · '+esc(c.note):''}</span></div>`;
+}
+function retPill(s){ const r = retUnits(s).length; if (!r) return ''; return r >= unitCount(s) ? `<span class="pill plain">Returned</span>` : `<span class="pill warn">Part returned</span>`; }
+
+/* ================= New sale ================= */
+const cartSub = () => round2(cart.items.reduce((a,i)=>a+i.price*i.qty,0));
+const cartDisc = () => { const sub = cartSub(), v = Math.max(0, Number(cart.discVal)||0); return round2(Math.min(sub, cart.discType==='pct' ? sub*Math.min(100,v)/100 : v)); };
+function discError(){ const sub = cartSub(), d = cartDisc(); if (!d || !sub) return ''; const pct = d/sub*100; const max = myMaxDisc();
+  if (pct > max + 0.001) return `That is a ${pct.toFixed(1)}% discount. Your limit is ${max}%. Ask a manager to sign in to approve it.`; return ''; }
+function match(p, q){ q = (q||'').trim().toLowerCase(); if (!q) return true; return [p.name,p.brand,p.category,...serialsOf(p)].join(' ').toLowerCase().includes(q); }
+function catChips(){ const cats = [...new Set(list(S.products).map(p=>p.category))].sort();
+  return `<div class="chips">${['all',...cats].map(c=>`<button data-cat="${esc(c)}" aria-pressed="${ui.cat===c}">${c==='all'?'All':esc(c)}</button>`).join('')}</div>`; }
+function sell(){
+  const prods = list(S.products).filter(p=>match(p,ui.q) && (ui.cat==='all'||p.category===ui.cat)).sort((a,b)=>a.category.localeCompare(b.category)||a.name.localeCompare(b.name));
+  const sub = cartSub(), disc = cartDisc(), total = round2(sub - disc);
+  const custs = list(S.customers).sort((a,b)=>a.name.localeCompare(b.name));
+  const dep = Number(cart.deposit)||0;
+  const inst = cart.count>0 ? round2((total-dep)/cart.count) : 0;
+  const isPlan = cart.method==='installment';
+  const planOk = !isPlan || (cart.customerId && dep>=0 && dep<total && cart.count>0);
+  const dErr = discError();
+  const mIcon = { cash:'m-cash', momo:'m-momo', card:'m-card', transfer:'m-transfer', installment:'m-deposit' };
+  const maxD = myMaxDisc();
+  return head('New sale', searchBox('sellQ','Search or scan a serial number',ui.q)) + `
+  <div class="cols">
+    <div class="stack" style="gap:16px">${catChips()}
+      <div class="shelf">${prods.map(p=>{ const lowS = p.stock>0 && p.stock <= (p.reorderAt??2);
+        return `<button class="prod ${p.stock<=0?'out':''}" data-add="${p.id}" ${p.stock<=0||!can('sell')?'disabled':''}>
+          ${p.energy?`<span class="energy e e-${esc(p.energy)}">${esc(p.energy)}</span>`:''}
+          <span class="glyph">${glyph(p.category)}</span>
+          <span class="nm"><span class="sub">${esc(p.brand)}</span><b>${esc(p.name)}</b></span>
+          <span class="foot"><span class="tag">${money(p.price)}</span><span class="left ${p.stock<=0?'out':lowS?'low':''}">${p.stock<=0?'Sold out':p.stock+' on<br>shelf'}</span></span>
+        </button>`;}).join('') || `<div class="card empty" style="grid-column:1/-1">No items match. Try another search or category.</div>`}</div>
+    </div>
+    <div class="receipt-wrap"><div class="receipt-paper">
+      <div class="rhead"><b>${esc(S.settings.name)}</b><span>Sale in progress · ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}${meObj()?.name?' · '+esc(meObj().name):''}</span></div>
+      ${cart.items.length ? cart.items.map((i,ix)=>`<div class="rline"><span class="n">${esc(i.name)}</span><span class="num">${money(i.price*i.qty)}</span>
+          <span class="sub">${money(i.price)} each${i.warrantyMonths?' · '+i.warrantyMonths+' mo warranty':''}</span><span class="qty"><button data-dec="${ix}" aria-label="One less">−</button><span class="num">${i.qty}</span><button data-inc="${ix}" aria-label="One more">+</button></span></div>`).join('')
+        : `<div class="rempty">Tap an appliance on the shelf<br>or scan its serial number.</div>`}
+      ${cart.items.length && maxD>0 ? `<div style="display:flex;flex-direction:column;gap:6px"><span class="kicker">Discount${maxD<100?' · up to '+maxD+'% for you':''}</span>
+        <div class="discrow"><div class="seg"><button data-dtype="amt" aria-pressed="${cart.discType==='amt'}">${esc(S.settings.currency)}</button><button data-dtype="pct" aria-pressed="${cart.discType==='pct'}">%</button></div>
+        <input id="discVal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" value="${esc(cart.discVal)}" aria-label="Discount"></div>
+        ${disc>0?`<input id="discNote" placeholder="Reason, for example price matched" value="${esc(cart.discNote)}" aria-label="Discount reason">`:''}
+        ${dErr?`<span class="err" role="alert">${dErr}</span>`:''}</div>` : ''}
+      ${disc>0?`<div class="rline minus"><span class="n">Discount${cart.discType==='pct'?' '+Number(cart.discVal)+'%':''}</span><span class="num">−${money(disc)}</span></div>`:''}
+      <div class="rtotal"><span>Total</span><span>${money(total)}</span></div>
+      <label for="cartCust">Customer ${isPlan?'(needed for installments)':'(optional)'}
+        <select id="cartCust"><option value="">Walk-in customer</option>${custs.map(c=>`<option value="${c.id}" ${c.id===cart.customerId?'selected':''}>${esc(c.name)} · ${esc(c.phone)}</option>`).join('')}</select></label>
+      ${can('sell')?`<button class="link" data-newcust="sell" style="align-self:flex-start">+ New customer</button>`:''}
+      <div style="display:flex;flex-direction:column;gap:6px"><span class="kicker">Payment</span><div class="methods">${Object.entries(METHODS).map(([k,l])=>`<button data-method="${k}" aria-pressed="${cart.method===k}"><i class="dot ${mIcon[k]}"></i>${l}</button>`).join('')}</div></div>
+      ${isPlan ? `<div class="fields">
+        <label for="cartDep">Deposit today<input id="cartDep" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(cart.deposit)}" placeholder="0.00"></label>
+        <label for="cartDepM">Deposit paid by<select id="cartDepM">${payOptions(cart.depositMethod)}</select></label>
+        <label for="cartCount">Number of payments<input id="cartCount" type="number" min="1" max="36" value="${cart.count}"></label>
+        <label for="cartFreq">How often<select id="cartFreq"><option value="weekly" ${cart.freq==='weekly'?'selected':''}>Weekly</option><option value="monthly" ${cart.freq==='monthly'?'selected':''}>Monthly</option></select></label>
+      </div>
+      <div class="rnote num">${total>0 ? (dep>=total ? 'The deposit covers the whole price. Choose another payment method instead.' : `Deposit ${money(dep)} today, then<br><b>${cart.count} × ${money(inst)}</b> ${cart.freq}.<br>First payment due ${fmtD(addPeriod(todayISO(),1,cart.freq))}.`) : 'Add items to see the payment schedule.'}</div>
+      ${!cart.customerId && cart.items.length ? `<span class="err">Choose or add the customer for this plan.</span>`:''}` : ''}
+      <button class="go" id="completeSale" style="padding:15px;font-size:15px" ${!cart.items.length||!planOk||dErr||!can('sell')?'disabled':''}>Complete sale · ${money(total)}</button>
+    </div></div>
+  </div>`;
+}
+
+/* ================= Stock ================= */
+function stock(){
+  const rows = list(S.products).filter(p=>match(p,ui.q) && (ui.cat==='all'||p.category===ui.cat)).sort((a,b)=>a.category.localeCompare(b.category)||a.name.localeCompare(b.name));
+  const units = list(S.products).reduce((a,p)=>a+p.stock,0);
+  return head('Stock', searchBox('stockQ','Name, brand or serial number',ui.q) + (can('editItems')?`<button class="primary" data-editprod="">Add item</button>`:'')) + `
+  <div class="bar">${catChips()}<span class="sub">${list(S.products).length} items · ${units} units</span></div>
+  <section class="card tcard tw"><table><thead><tr><th>Item</th><th>Energy</th>${canSee('editItems')?'<th class="r">Cost</th>':''}<th class="r">Price</th>${canSee('editItems')?'<th class="r">Margin</th>':''}<th>On shelf</th><th>Warranty</th><th></th></tr></thead><tbody>
+  ${rows.map(p=>{ const m = p.price? (p.price-p.cost)/p.price*100:0; const ro = p.reorderAt ?? 2; const lowS = p.stock <= ro; const cap = Math.max(ro*3, p.stock, 1); const sn = serialsOf(p);
+    return `<tr><td><span class="itemcell"><span class="glyph">${glyph(p.category)}</span><span><b>${esc(p.brand)} ${esc(p.name)}</b><br>${sn.length ? `<button class="link mono" style="font-size:12px;font-weight:500" data-serials="${p.id}">S/N ${esc(sn[0])}${sn.length>1?' +'+(sn.length-1)+' more':''}</button>` : `<span class="sub">${p.stock>0?'No serials recorded':'None on shelf'}</span>`}</span></span></td>
+    <td>${p.energy?`<span class="energy e-${esc(p.energy)}">${esc(p.energy)}</span>`:'<span class="sub">–</span>'}</td>
+    ${canSee('editItems')?`<td class="r">${money(p.cost)}</td>`:''}<td class="r"><b>${money(p.price)}</b></td>${canSee('editItems')?`<td class="r">${m.toFixed(0)}%</td>`:''}
+    <td style="white-space:nowrap"><b class="num">${p.stock}</b><span class="meter ${p.stock===0?'out':lowS?'low':''}"><i style="width:${Math.min(100,p.stock/cap*100)}%"></i></span></td>
+    <td>${p.warrantyMonths||0} mo</td>
+    <td class="r" style="white-space:nowrap">${can('restock')?`<button class="small" data-restock="${p.id}">Restock</button> `:''}${can('editItems')?`<button class="small" data-editprod="${p.id}">Edit</button>`:''}</td></tr>`;}).join('') || `<tr><td colspan="8"><div class="empty">${list(S.products).length?'No items match.':'No items yet. Add your first appliance.'}</div></td></tr>`}
+  </tbody></table></section>`;
+}
+
+/* ================= Installments ================= */
+function plans(){
+  const all = list(S.plans).map(p=>({p, st:planStats(p)}));
+  const f = ui.planFilter, ord = {overdue:0,soon:1,ontrack:2,paid:3,cancelled:4};
+  const inF = (x,k) => k==='all' || (k==='open' && !['paid','cancelled'].includes(x.st.status)) || (k==='overdue' && x.st.status==='overdue') || (k==='paid' && ['paid','cancelled'].includes(x.st.status));
+  const rows = all.filter(x=>inF(x,f)).sort((a,b)=>ord[a.st.status]-ord[b.st.status] || b.st.late-a.st.late);
+  const cnt = k => all.filter(x=>inF(x,k)).length;
+  return head('Installment plans', `<div class="seg">${[['open','Open'],['overdue','Late'],['paid','Finished'],['all','All']].map(([k,l])=>`<button data-pf="${k}" aria-pressed="${f===k}">${l} · ${cnt(k)}</button>`).join('')}</div>`) +
+  `<div class="legend sub"><span><i class="dot" style="background:var(--ink)"></i>Deposit</span><span><i class="dot" style="background:var(--accent)"></i>Paid</span><span><i class="dot" style="background:var(--bad-soft);outline:1px solid var(--bad)"></i>Missed</span><span><i class="dot" style="background:var(--sunk);outline:1px solid var(--line)"></i>Still to come</span></div>
+  <div class="plans">${rows.map(({p,st})=>`
+    <article class="card plan ${st.status}">
+      <div class="top">${avatar(p.customerId)}<div class="who"><b>${esc(custName(p.customerId))}</b><div class="sub">${esc(p.productName)}</div></div><span class="pill ${st.cls}">${st.label}</span></div>
+      <div class="strip" title="Payment schedule"><i class="dep"></i>${scheduleStates(p).map(x=>`<i class="${x.s}" title="${fmtD(x.due)}"></i>`).join('')}</div>
+      <div class="figs"><div><span class="kicker">Paid</span><b>${money(st.paid)}</b></div><div><span class="kicker">Balance</span><b>${money(st.balance)}</b></div><div><span class="kicker">Next due</span><b>${st.nextDue?fmtShort(st.nextDue):'Done'}</b></div></div>
+      <div class="acts"><span class="sub">${p.count} × ${money(p.instalment)} ${p.freq}</span><span style="display:flex;gap:8px;flex-wrap:wrap">${!['paid','cancelled'].includes(st.status)&&can('pay')?`<button class="small primary" data-pay="${p.id}">Take payment</button>`:''}<button class="small" data-plan="${p.id}">Details</button></span></div>
+    </article>`).join('') || `<div class="card empty" style="grid-column:1/-1">No plans here. Choose Installment as the payment on a new sale to start one.</div>`}</div>`;
+}
+
+/* ================= Warranty ================= */
+function unitsSold(){ const out = [];
+  for (const s of list(S.sales)) s.items.forEach((i,ix) => { const sns = unitSerials(i); for (let u=0; u<i.qty; u++) out.push({ s, i, ix, u, serial: sns[u] || '' }); });
+  return out; }
+function warrantyInfo(x){
+  const start = x.s.date.slice(0,10), months = x.i.warrantyMonths || 0, end = months ? addPeriod(start, months, 'monthly') : start;
+  if (isReturned(x.s, x.ix, x.u)) return { end, cls:'plain', label:'Returned', pct:0 };
+  const t = todayISO(); const total = Math.max(1, dayDiff(start, end)), left = dayDiff(t, end);
+  if (!months || left < 0) return { end, cls:'plain', label:'Out of warranty', pct:0, exp:true };
+  const ml = Math.max(0, Math.round(left/30.4));
+  return { end, cls: left < 31 ? 'warn' : 'good', label: ml >= 1 ? `${ml} ${ml===1?'month':'months'} left` : `${left} ${left===1?'day':'days'} left`, pct: left/total*100 };
+}
+function warranty(){
+  const q = ui.wq.trim(), Q = q.toUpperCase(), ql = q.toLowerCase();
+  let hits = [], shelf = [];
+  if (q.length >= 2) {
+    hits = unitsSold().filter(x => (x.serial && x.serial.toUpperCase().includes(Q)) || x.s.receipt.toUpperCase() === Q || custName(x.s.customerId).toLowerCase().includes(ql) || (S.customers[x.s.customerId]?.phone||'').replace(/\s/g,'').includes(ql.replace(/\s/g,'')) && ql.replace(/\D/g,'').length>=4)
+      .sort((a,b)=>b.s.date.localeCompare(a.s.date)).slice(0,30);
+    shelf = list(S.products).flatMap(p => serialsOf(p).filter(sn=>sn.includes(Q)).map(sn=>({p, sn}))).slice(0,10);
+  }
+  const claims = list(S.claims).sort((a,b)=> (a.status==='done') - (b.status==='done') || b.date.localeCompare(a.date)).slice(0,40);
+  const typeL = { repair:'Repair', replacement:'Replacement', inspection:'Inspection' };
+  return head('Warranty', searchBox('wQ','Serial number, receipt or customer', ui.wq)) + `
+  ${q.length < 2 ? `<section class="card"><p style="margin:0">Type or scan the serial number from the appliance to see who bought it, when, and whether it is still under warranty. You can also search by receipt number or customer name.</p></section>` : ''}
+  ${q.length >= 2 ? `<div class="wgrid">${hits.map(x => { const w = warrantyInfo(x); const prod = S.products[x.i.productId];
+    const claimsFor = list(S.claims).filter(c=>c.saleId===x.s.id && c.itemIndex===x.ix && (c.serial||'')===x.serial);
+    return `<article class="card wcard">
+      <div class="wtop"><span class="glyph">${glyph(prod?.category)}</span><div class="who"><b>${esc(x.i.name)}</b><div class="sub mono">${x.serial?'S/N '+esc(x.serial):'No serial recorded'}</div></div><span class="pill ${w.cls}">${w.label}</span></div>
+      <div class="meterw ${w.exp?'exp':''}"><i style="width:${w.pct}%"></i></div>
+      <div class="figs"><div><span class="kicker">Sold</span><b>${fmtShort(x.s.date)}</b></div><div><span class="kicker">Covered to</span><b>${x.i.warrantyMonths?fmtShort(w.end):'No cover'}</b></div><div><span class="kicker">Receipt</span><b class="mono" style="font-size:13px">${esc(x.s.receipt)}</b></div></div>
+      <div class="person" style="padding:0;border:0">${avatar(x.s.customerId)}<div class="who"><b>${esc(custName(x.s.customerId))}</b><span class="sub mono">${esc(S.customers[x.s.customerId]?.phone||'')}</span></div></div>
+      ${claimsFor.length?`<div class="sub">${claimsFor.length} claim${claimsFor.length===1?'':'s'} logged · latest ${fmtShort(claimsFor.sort((a,b)=>b.date.localeCompare(a.date))[0].date)}</div>`:''}
+      <div class="acts" style="justify-content:flex-end">${can('claim')&&w.label!=='Returned'?`<button class="small primary" data-claim="${x.s.id}|${x.ix}|${esc(x.serial)}">Log a claim</button>`:''}${can('returns')&&w.label!=='Returned'?`<button class="small" data-return="${x.s.id}">Return</button>`:''}<button class="small" data-receipt="${x.s.id}">Receipt</button></div>
+    </article>`; }).join('')}
+    ${shelf.map(({p,sn})=>`<article class="card wcard"><div class="wtop"><span class="glyph">${glyph(p.category)}</span><div class="who"><b>${esc(p.brand)} ${esc(p.name)}</b><div class="sub mono">S/N ${esc(sn)}</div></div><span class="pill acc">On the shelf</span></div><p class="sub" style="margin:0">This unit has not been sold yet.</p></article>`).join('')}
+    ${!hits.length && !shelf.length ? `<div class="card empty" style="grid-column:1/-1">Nothing matches “${esc(q)}”. Check the serial number on the appliance’s label.</div>`:''}</div>` : ''}
+  <section class="card tcard tw"><div class="cardhead" style="padding:18px 20px 0"><h3>Warranty claims</h3><span class="sub">${list(S.claims).filter(c=>c.status!=='done').length} open</span></div>
+  <table><thead><tr><th>Logged</th><th>Appliance</th><th>Customer</th><th>Type</th><th>Problem</th><th>Status</th><th></th></tr></thead><tbody>
+  ${claims.map(c=>`<tr><td style="white-space:nowrap">${fmtShort(c.date)}</td><td><b>${esc(c.productName)}</b><br><span class="sub mono">${c.serial?'S/N '+esc(c.serial):''}</span></td><td>${esc(custName(c.customerId))}</td><td>${typeL[c.type]||esc(c.type)}</td>
+    <td style="max-width:280px">${esc(c.note)}${c.outcome?`<br><span class="sub">Outcome: ${esc(c.outcome)}</span>`:''}</td><td><span class="pill ${c.status==='done'?'plain':'warn'}">${c.status==='done'?'Resolved '+fmtShort(c.resolvedAt):'Open'}</span></td>
+    <td class="r">${c.status!=='done'&&can('claim')?`<button class="small" data-resolve="${c.id}">Resolve</button>`:''}</td></tr>`).join('') || `<tr><td colspan="7"><div class="empty">No claims logged yet.</div></td></tr>`}
+  </tbody></table></section>`;
+}
+
+/* ================= Customers ================= */
+function customers(){
+  const q = ui.custQ.trim().toLowerCase();
+  const rows = list(S.customers).filter(c=>!q || (c.name+' '+c.phone+' '+(c.area||'')).toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name)).map(c=>{
+    const ss = list(S.sales).filter(s=>s.customerId===c.id); const spent = ss.reduce((a,s)=>a+s.total-(s.refundTotal||0),0);
+    const ps = list(S.plans).filter(p=>p.customerId===c.id).map(planStats); const bal = ps.reduce((a,s)=>a+s.balance,0); const od = ps.some(s=>s.status==='overdue');
+    return {c, n:ss.length, spent, bal, od};
+  });
+  return head('Customers', searchBox('custQ','Name or phone',ui.custQ) + (can('sell')?`<button class="primary" data-newcust="list">Add customer</button>`:'')) + `
+  <section class="card tcard tw"><table><thead><tr><th>Customer</th><th>Phone</th><th class="r">Purchases</th><th class="r">Total bought</th><th class="r">Owes</th><th></th></tr></thead><tbody>
+  ${rows.map(({c,n,spent,bal,od})=>`<tr><td><span class="itemcell">${avatar(c.id)}<span><b>${esc(c.name)}</b><br><span class="sub">${esc(c.area||'')}</span></span></span></td><td class="mono">${esc(c.phone)}</td><td class="r">${n}</td><td class="r">${money(spent)}</td>
+    <td class="r">${bal>0?`<span class="pill ${od?'bad':'acc'}">${money(bal)}</span>`:'<span class="sub">Nothing</span>'}</td><td class="r"><button class="small" data-cust="${c.id}">History</button></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty">No customers found.</div></td></tr>`}
+  </tbody></table></section>`;
+}
+
+/* ================= Sales log ================= */
+function sales(){
+  const q = ui.saleQ.trim().toLowerCase();
+  const rows = list(S.sales).filter(s=>!q || (s.receipt+' '+custName(s.customerId)+' '+staffName(s.staffId)+' '+s.items.map(i=>i.name+' '+unitSerials(i).join(' ')).join(' ')).toLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date));
+  const sum = rows.reduce((a,s)=>a+s.total-(s.refundTotal||0),0);
+  return head('Sales log', searchBox('saleQ','Receipt, name, staff or serial',ui.saleQ)) + `
+  <div class="bar"><span class="sub">${rows.length} ${rows.length===1?'sale':'sales'} · ${money(sum)} after refunds</span></div>
+  <section class="card tcard tw"><table><thead><tr><th>Receipt</th><th>When</th><th>Customer</th><th>Items</th><th>Payment</th><th>Served by</th><th class="r">Total</th><th></th></tr></thead><tbody>
+  ${rows.map(s=>`<tr><td class="mono"><b>${esc(s.receipt)}</b></td><td style="white-space:nowrap">${fmtDT(s.date)}</td><td>${esc(custName(s.customerId))}</td>
+    <td>${s.items.map(i=>`${esc(i.name)}${i.qty>1?' × '+i.qty:''}${unitSerials(i).length?`<br><span class="sub mono">S/N ${esc(unitSerials(i).join(', '))}</span>`:''}`).join('<br>')}</td><td style="white-space:nowrap"><i class="dot m-${s.method==='installment'?'deposit':s.method}" style="margin-right:6px"></i>${METHODS[s.method]}</td>
+    <td>${esc(staffName(s.staffId))||'<span class="sub">–</span>'}</td>
+    <td class="r"><b>${money(s.total)}</b>${saleDisc(s)?`<br><span class="sub">−${money(saleDisc(s))} off</span>`:''}${s.refundTotal?`<br><span class="sub" style="color:var(--bad)">−${money(s.refundTotal)} refunded</span>`:''}</td>
+    <td class="r" style="white-space:nowrap">${retPill(s)} <button class="small" data-receipt="${s.id}">Receipt</button></td></tr>`).join('') || `<tr><td colspan="8"><div class="empty">No sales match.</div></td></tr>`}
+  </tbody></table></section>`;
+}
+
+/* ================= Reports ================= */
+function reports(){
+  const [from, to, label] = periodRange(ui.period);
+  const m = metrics(from, to), f = flow(from, to);
+  const days = []; for (let d = parseD(from); isoOf(d) <= to; d.setDate(d.getDate()+1)) days.push(isoOf(d));
+  const vals = days.map(d => Math.max(0, m.byDay[d]||0)); const vmax = Math.max(1, ...vals);
+  const best = Object.values(m.byProd).filter(b=>b.units>0).sort((a,b)=>b.rev-a.rev).slice(0,8);
+  const cats = Object.entries(m.byCat).sort((a,b)=>b[1]-a[1]); const cmax = Math.max(1, ...cats.map(c=>c[1]));
+  const staffRows = Object.entries(m.byStaff).sort((a,b)=>b[1]-a[1]);
+  const lastSale = {}; for (const s of list(S.sales)) for (const i of s.items) { const d = s.date.slice(0,10); if (!lastSale[i.productId] || d > lastSale[i.productId]) lastSale[i.productId] = d; }
+  const t = todayISO();
+  const slow = list(S.products).filter(p=>p.stock>0).map(p=>({ p, days: lastSale[p.id] ? dayDiff(lastSale[p.id], t) : null })).filter(x=>x.days===null || x.days>=30).sort((a,b)=>(b.days??9999)-(a.days??9999));
+  const closes = list(S.closes).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  const margin = m.net ? m.profit/m.net*100 : 0;
+  return head('Reports', `<div class="seg">${[['today','Today'],['week','Week'],['month','Month'],['last','Last month'],['q','90 days']].map(([k,l])=>`<button data-period="${k}" aria-pressed="${ui.period===k}">${l}</button>`).join('')}</div>${dl?`<button data-csv>Download sales (CSV)</button>`:''}`) + `
+  <div class="kpis4">
+    <div><span class="kicker">Net sales · ${label}</span><span class="v">${money(m.net)}</span><span class="sub">${m.n} ${m.n===1?'sale':'sales'} · ${m.units} units</span></div>
+    <div><span class="kicker">Gross profit</span><span class="v">${money(m.profit)}</span><span class="sub">${margin.toFixed(0)}% margin after cost of goods</span></div>
+    <div><span class="kicker">Discounts given</span><span class="v">${money(m.disc)}</span><span class="sub">${m.gross+m.disc?((m.disc/(m.gross+m.disc))*100).toFixed(1):'0.0'}% of list price</span></div>
+    <div><span class="kicker">Refunds</span><span class="v">${money(m.refunds)}</span><span class="sub">Money in: ${money(f.total)}</span></div>
+  </div>
+  <section class="card"><div class="cardhead"><h3>Net sales by day</h3><span class="sub">${fmtD(from)} – ${fmtD(to)}</span></div>
+    <div class="chart"><div class="plot"><span class="ymax">${money(vmax)}</span><span class="grid"></span>${vals.map((v,k)=>`<i class="${v?'':'zero'}" style="height:${v/vmax*100}%" title="${fmtD(days[k])}: ${esc(plain(m.byDay[days[k]]||0))}"></i>`).join('')}</div>
+    <div class="x"><span>${fmtShort(from)}</span><span>${fmtShort(to)}</span></div></div></section>
+  <div class="cols">
+    <section class="card tcard tw"><div class="cardhead" style="padding:18px 20px 0"><h3>Best sellers</h3></div>
+      <table><thead><tr><th>Item</th><th class="r">Units</th><th class="r">Sales</th><th class="r">Profit</th></tr></thead><tbody>
+      ${best.map(b=>`<tr><td><b>${esc(b.name)}</b></td><td class="r">${b.units}</td><td class="r">${money(b.rev)}</td><td class="r">${money(b.rev-b.cost)}</td></tr>`).join('') || `<tr><td colspan="4"><div class="empty">No sales in this period.</div></td></tr>`}
+      </tbody></table></section>
+    <div class="stack">
+      <section class="card"><div class="cardhead"><h3>Money in by method</h3></div>
+        <div class="hbars">${Object.entries(f.by).map(([k,v])=>`<div class="b"><span>${PAYM[k]}</span><span class="t"><i style="width:${Math.max(0,v)/Math.max(1,...Object.values(f.by))*100}%"></i></span><span class="num">${money(v)}</span></div>`).join('')}</div>
+        <p class="sub" style="margin:12px 0 0">Includes ${money(f.planIn)} in plan payments, less ${money(f.refunds)} refunded.</p></section>
+      <section class="card"><div class="cardhead"><h3>Sales by category</h3></div>
+        ${cats.length?`<div class="hbars">${cats.map(([c,v])=>`<div class="b"><span>${esc(c)}</span><span class="t"><i style="width:${v/cmax*100}%"></i></span><span class="num">${money(v)}</span></div>`).join('')}</div>`:'<div class="empty">No sales in this period.</div>'}</section>
+    </div>
+  </div>
+  <div class="cols">
+    <section class="card"><div class="cardhead"><h3>Slow-moving stock</h3><span class="sub">No sale in 30+ days</span></div>
+      ${slow.length?`<div class="reorder">${slow.map(({p,days})=>`<div class="r"><span class="itemcell" style="min-width:0;flex:1"><span class="glyph">${glyph(p.category)}</span><span class="who" style="min-width:0"><b style="display:block">${esc(p.brand)} ${esc(p.name)}</b><span class="sub">${p.stock} on shelf · ${money(p.cost*p.stock)} tied up</span></span></span><span class="pill warn">${days===null?'Never sold':days+' days'}</span></div>`).join('')}</div>`:'<div class="empty">Everything on the shelf has sold in the last 30 days.</div>'}</section>
+    <div class="stack">
+      ${staffMode()||staffRows.some(([k])=>k)?`<section class="card"><div class="cardhead"><h3>Sales by staff</h3></div><div class="people">${staffRows.map(([id,v])=>`<div class="person">${avatarN(id||'none', staffName(id)||'Not recorded')}<div class="who"><b>${esc(staffName(id)||'Not recorded')}</b></div><span class="num" style="font-weight:600">${money(v)}</span></div>`).join('')||'<div class="empty">No sales in this period.</div>'}</div></section>`:''}
+      <section class="card"><div class="cardhead"><h3>Day closes</h3></div>${closes.length?`<div class="people">${closes.map(c=>`<div class="person" style="flex-wrap:wrap"><div class="who" style="min-width:140px"><b style="white-space:nowrap">${fmtD(c.date)}</b><span class="sub">${c.staffId?esc(staffName(c.staffId)):''}${c.note?' · '+esc(c.note):''}</span></div>${diffPill('Cash',c.diff?.cash)}${diffPill('MoMo',c.diff?.momo)}</div>`).join('')}</div>`:'<div class="empty">No days closed yet.</div>'}</section>
+    </div>
+  </div>`;
+}
+const diffPill = (l, d) => { d = round2(d||0); return Math.abs(d)<0.01 ? `<span class="pill good">${l} ok</span>` : d<0 ? `<span class="pill bad">${l} −${money(-d)}</span>` : `<span class="pill warn">${l} +${money(d)}</span>`; };
+async function downloadCsv(){
+  const [from, to, label] = periodRange(ui.period);
+  const q = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
+  const rows = [['Date','Receipt','Customer','Phone','Served by','Items','Serials','Payment','Subtotal','Discount','Total','Refunded']];
+  list(S.sales).filter(s=>{const d=s.date.slice(0,10); return d>=from&&d<=to;}).sort((a,b)=>a.date.localeCompare(b.date)).forEach(s=>rows.push([
+    s.date.slice(0,16).replace('T',' '), s.receipt, custName(s.customerId), S.customers[s.customerId]?.phone||'', staffName(s.staffId), s.items.map(i=>i.name+(i.qty>1?' x'+i.qty:'')).join('; '), s.items.map(i=>unitSerials(i).join(' ')).join('; '), METHODS[s.method], saleSub(s).toFixed(2), saleDisc(s).toFixed(2), s.total.toFixed(2), (s.refundTotal||0).toFixed(2)]));
+  try { await dl.save({ filename: `sales-${from}-to-${to}.csv`, data: rows.map(r=>r.map(q).join(',')).join('\r\n') }); toast('Sales file saved'); }
+  catch(e){ if (e?.code !== 'declined') toast('Could not save the file here'); }
+}
+
+/* ================= Settings & staff ================= */
+function settings(){
+  const st = list(S.staff).sort((a,b)=>(a.active===false)-(b.active===false)||a.name.localeCompare(b.name));
+  const ownerCan = !staffMode() ? true : can('staff');
+  return head('Settings') + `
+  <div class="cols">
+    <section class="card"><div class="cardhead"><h3>Shop details</h3></div>
+      <form id="setForm" class="stack" style="gap:16px"><div class="fields">
+        <label for="st_name" class="full">Shop name, shown on receipts<input id="st_name" required value="${esc(S.settings.name)}" ${can('settings')?'':'disabled'}></label>
+        <label for="st_cur">Currency symbol<input id="st_cur" required value="${esc(S.settings.currency)}" ${can('settings')?'':'disabled'}></label>
+        <label for="st_cc">Phone country code<input id="st_cc" inputmode="numeric" value="${esc(S.settings.country||'')}" placeholder="233" ${can('settings')?'':'disabled'}><span class="sub" style="font-weight:400">Used to open WhatsApp from local numbers like 024…</span></label>
+      </div>${can('settings')?'<button class="primary" type="submit" style="align-self:flex-start">Save details</button>':'<span class="sub">Only the owner can change these.</span>'}</form>
+    </section>
+    <section class="card"><div class="cardhead"><h3>Staff and PINs</h3>${ownerCan?`<button class="small primary" data-staff="">Add staff</button>`:''}</div>
+      ${st.length ? `<div class="people">${st.map(p=>`<div class="person" style="${p.active===false?'opacity:.55':''}">${avatarN(p.id,p.name)}<div class="who"><b>${esc(p.name)}${p.id===me?' · you':''}</b><span class="sub"><span class="rolepill">${esc(p.role)}</span> · discount up to ${Number(p.maxDiscount ?? 0)}%${p.active===false?' · no longer active':''}</span></div>${ownerCan?`<button class="small" data-staff="${p.id}">Edit</button>`:''}</div>`).join('')}</div>`
+        : `<p style="margin:0 0 10px">No staff yet, so anyone who opens this page can do everything.</p><p class="sub" style="margin:0">Add yourself as the owner first, then your sales staff. Once staff exist, each person signs in on the till with a 4-digit PIN, and every sale, payment and refund is recorded under their name.</p>`}
+      <p class="sub" style="margin:16px 0 0">Roles: <b>Sales</b> can sell, take payments and log warranty claims. <b>Manager</b> can also edit items, restock, give returns and see reports. <b>Owner</b> can do everything, including staff and settings.</p>
+      <p class="sub" style="margin:8px 0 0">PINs record who is using the till. The shop password is what keeps the records private, so give it only to people who work at the till.</p>
+    </section>
+  </div>
+  <div class="cols">
+    <section class="card"><div class="cardhead"><h3>This device</h3></div>
+      <p class="sub" style="margin:0 0 14px">This device stays signed in for 30 days. Add the app to the home screen from your browser’s menu to open it like an app.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${can('settings')?'<button data-changepw>Change shop password</button>':''}<button data-signout>Sign this device out</button></div>
+    </section>
+  </div>`;
+}
+function staffForm(id){
+  const p = id ? S.staff[id] : { name:'', role: staffMode() ? 'sales' : 'owner', maxDiscount: staffMode()?5:100, active:true };
+  const first = !staffMode() && !id;
+  modal(mhead(id?'Edit staff':'Add staff','Cancel') + `
+  <form id="staffForm" class="stack" style="gap:18px"><div class="fields">
+    <label for="sf_name" class="full">Name<input id="sf_name" required value="${esc(p.name)}"></label>
+    <label for="sf_role">Role<select id="sf_role" ${first?'disabled':''}>${['sales','manager','owner'].map(r=>`<option value="${r}" ${p.role===r?'selected':''}>${r[0].toUpperCase()+r.slice(1)}</option>`).join('')}</select></label>
+    <label for="sf_max">Largest discount (%)<input id="sf_max" type="number" min="0" max="100" value="${esc(p.maxDiscount ?? 0)}"></label>
+    <label for="sf_pin" class="full">${id?'New PIN (leave blank to keep the current one)':'PIN, 4 to 6 digits'}<input id="sf_pin" class="mono" type="password" inputmode="numeric" pattern="[0-9]{4,6}" ${id?'':'required'} autocomplete="new-password"></label>
+    ${id && id!==me ? `<label class="check full"><input type="checkbox" id="sf_active" ${p.active!==false?'checked':''}>Can sign in to the till</label>` : ''}
+  </div>${first?`<p class="sub" style="margin:0">The first person added is the owner. After saving you will sign in with this PIN.</p>`:''}<span class="err" id="sfErr" role="alert"></span>
+  <button class="primary" type="submit">Save</button></form>`);
+  $('#staffForm').addEventListener('submit', async e => { e.preventDefault();
+    const pin = $('#sf_pin').value.trim(); if (pin && !/^\d{4,6}$/.test(pin)) { $('#sfErr').textContent = 'Use 4 to 6 digits for the PIN.'; return; }
+    const role = first ? 'owner' : $('#sf_role').value;
+    const owners = activeStaff().filter(s=>s.role==='owner' && s.id!==id);
+    const active = $('#sf_active') ? $('#sf_active').checked : true;
+    if (id && S.staff[id].role==='owner' && (role!=='owner' || !active) && !owners.length) { $('#sfErr').textContent = 'Keep at least one active owner.'; return; }
+    const ref = id ? db.collection('staff').doc(id) : db.collection('staff').doc();
+    const data = { id: ref.id, name: $('#sf_name').value.trim(), role, maxDiscount: Math.min(100, Math.max(0, Number($('#sf_max').value)||0)), active, pinHash: pin ? await hashPin(pin) : (S.staff[id]?.pinHash || '') };
+    if (await write(()=>ref.set(data), 'Staff saved')) { if (first) setMe(ref.id); closeModal(); render(); }
+  });
+}
+
+/* ================= Modals ================= */
+function modal(html){ $('#modalRoot').innerHTML = `<div class="overlay" id="ov"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`; const f = $('#modalRoot').querySelector('input:not([type=checkbox]),select,textarea'); f && f.focus(); }
+function closeModal(){ $('#modalRoot').innerHTML = ''; }
+const mhead = (t, btn='Close') => `<div class="mhead"><h2>${t}</h2><button class="small" data-close>${btn}</button></div>`;
+
+function receiptText(s){
+  const c = S.customers[s.customerId], W = 34;
+  const line = (l, r) => { l = String(l); r = String(r); return l.length + r.length + 1 > W ? l + '\n' + ' '.repeat(Math.max(0,W-r.length)) + r : l + ' '.repeat(W - l.length - r.length) + r; };
+  const center = t => ' '.repeat(Math.max(0, Math.floor((W - t.length)/2))) + t;
+  const out = [center(S.settings.name), center('Receipt ' + s.receipt), center(fmtDT(s.date)), ''];
+  if (c) out.push('Customer: '+c.name, 'Phone: '+c.phone); else out.push('Walk-in customer');
+  if (s.staffId) out.push('Served by: ' + staffName(s.staffId));
+  out.push('-'.repeat(W));
+  s.items.forEach((i, ix) => { out.push(line(i.name + (i.qty>1?' x'+i.qty:''), plain(i.price*i.qty)));
+    const sns = unitSerials(i); sns.forEach((sn,u) => out.push('  S/N ' + sn + (isReturned(s,ix,u)?' (returned)':'')));
+    if (i.warrantyMonths) out.push('  Warranty to ' + fmtD(addPeriod(s.date.slice(0,10), i.warrantyMonths,'monthly'))); });
+  out.push('-'.repeat(W));
+  if (saleDisc(s)) out.push(line('Subtotal', plain(saleSub(s))), line('Discount', '-' + plain(saleDisc(s))));
+  out.push(line('TOTAL', plain(s.total)), line('Paid by', METHODS[s.method]));
+  if (s.method==='installment' && S.plans[s.planId]) { const p = S.plans[s.planId]; out.push(line('Deposit', plain(p.deposit)), line('Then', p.count+' x '+plain(p.instalment)), line('', p.freq)); }
+  for (const r of (s.returns||[])) out.push('', line('Returned ' + fmtD(r.date), r.units.length + (r.units.length===1?' unit':' units')), line('Refund (' + PAYM[r.method] + ')', '-' + plain(r.refund)));
+  out.push('', center('Thank you for shopping with us.'));
+  return out.join('\n');
+}
+function showReceipt(id){
+  const s = S.sales[id]; if (!s) return;
+  const c = S.customers[s.customerId]; const allBack = retUnits(s).length >= unitCount(s);
+  modal(mhead('Receipt ' + esc(s.receipt)) + `<div class="printed" id="rcpt">${esc(receiptText(s))}</div>
+    <div class="bar"><span class="sub">Print it, or send it by WhatsApp or SMS.</span><span style="display:flex;gap:8px;flex-wrap:wrap">${c?waBtn(c.phone, receiptText(s)):''}<button data-copy="rcpt">Copy</button><button class="primary" data-print="${s.id}">Print</button></span></div>
+    ${can('returns') && !allBack ? `<div class="bar" style="border-top:1px solid var(--line);padding-top:14px"><span class="sub">Customer bringing something back?</span><button data-return="${s.id}">Return items</button></div>` : ''}`);
+}
+function returnForm(id){
+  const s = S.sales[id]; if (!s) return;
+  const isPlan = s.method==='installment'; const plan = S.plans[s.planId]; const sh = shareOf(s);
+  const paid = isPlan ? round2((plan ? planStats(plan).paid : 0) - (s.refundTotal||0)) : round2(s.total - (s.refundTotal||0));
+  const units = []; s.items.forEach((i,ix)=>{ const sns = unitSerials(i); for (let u=0; u<i.qty; u++) units.push({ ix, u, serial: sns[u]||'', name:i.name, net: round2(i.price*sh), done: isReturned(s,ix,u) }); });
+  modal(mhead('Return items','Cancel') + `<p class="muted" style="margin:0">Receipt ${esc(s.receipt)} · ${esc(custName(s.customerId))} · sold ${fmtD(s.date)}${isPlan?'. This was an installment sale, so the whole plan is returned and closed.':''}</p>
+  <form id="retForm" class="stack" style="gap:16px">
+    <div class="units">${units.map((x,k)=>`<label class="${x.done?'done':''}"><input type="checkbox" data-unit="${k}" ${x.done?'disabled':''} ${!x.done&&(isPlan||units.length===1)?'checked':''} ${isPlan&&!x.done?'onclick="return false"':''}><span style="flex:1">${esc(x.name)}${x.serial?`<br><span class="sub mono">S/N ${esc(x.serial)}</span>`:''}</span><span class="num">${x.done?'Returned':money(x.net)}</span></label>`).join('')}</div>
+    <div class="fields">
+      <label for="rt_reason">Reason<select id="rt_reason"><option value="changed">Changed their mind</option><option value="faulty">Faulty</option><option value="wrong">Wrong item</option><option value="damaged">Damaged in delivery</option><option value="other">Other</option></select></label>
+      <label for="rt_method">Refund by<select id="rt_method">${payOptions(s.method==='installment'?'cash':s.method)}</select></label>
+      <label for="rt_amt">Refund amount<input id="rt_amt" type="number" min="0" step="0.01" required></label>
+      <label class="check" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="rt_shelf" checked>Put back on the shelf</label>
+      <label for="rt_note" class="full">Note<input id="rt_note" placeholder="For example: box opened, all parts present"></label>
+    </div>
+    <span class="sub">The customer has paid ${money(paid)} on this sale so far. You can refund up to that amount.</span>
+    <span class="err" id="rtErr" role="alert"></span>
+    <button class="primary" type="submit">Record return and refund</button></form>`);
+  const sel = () => [...document.querySelectorAll('#retForm [data-unit]')].filter(x=>x.checked && !x.disabled).map(x=>units[+x.dataset.unit]);
+  const setAmt = () => { const v = isPlan ? paid : Math.min(paid, round2(sel().reduce((a,x)=>a+x.net,0))); $('#rt_amt').value = v.toFixed(2); };
+  setAmt();
+  $('#retForm').addEventListener('change', e => { if (e.target.dataset.unit !== undefined) setAmt(); if (e.target.id==='rt_reason') $('#rt_shelf').checked = !['faulty','damaged'].includes(e.target.value); });
+  $('#retForm').addEventListener('submit', async e => { e.preventDefault();
+    const chosen = sel(); const amt = round2(Number($('#rt_amt').value));
+    if (!chosen.length) { $('#rtErr').textContent = 'Tick at least one unit to return.'; return; }
+    if (amt < 0 || amt > paid + 0.01) { $('#rtErr').textContent = 'The refund can be at most ' + plain(paid) + '.'; return; }
+    const restock = $('#rt_shelf').checked;
+    const entry = { date: todayISO(), at: new Date().toISOString(), units: chosen.map(x=>({ i:x.ix, u:x.u, serial:x.serial })), refund: amt, method: $('#rt_method').value, reason: $('#rt_reason').value, note: $('#rt_note').value.trim(), restocked: restock, staffId: meObj()?.id || '' };
+    const ok = await write(async () => {
+      const fresh = (await db.collection('sales').doc(id).get()).data() || s;
+      if ((fresh.returns||[]).flatMap(r=>r.units).some(u=>entry.units.some(x=>x.i===u.i && x.u===u.u))) throw { code:'stale', message:'Some of these units were already returned on another till.' };
+      await db.collection('sales').doc(id).update({ returns: [...(fresh.returns||[]), entry], refundTotal: round2((fresh.refundTotal||0) + amt) });
+      if (restock) { const byP = {}; chosen.forEach(x => { const pid = s.items[x.ix].productId; (byP[pid] ||= []).push(x); });
+        for (const pid of Object.keys(byP)) { const L = await withLock(pid); if (!L.data) continue;
+          const back = byP[pid].map(x=>x.serial).filter(sn => sn && !serialsOf(L.data).includes(sn));
+          await L.ref.update({ stock: (L.data.stock||0) + byP[pid].length, serials: [...serialsOf(L.data), ...back] }); } }
+      if (isPlan && plan) await db.collection('plans').doc(plan.id).update({ cancelled: true, cancelledAt: todayISO() });
+    }, 'Return recorded');
+    if (ok) { closeModal(); render(); setTimeout(()=>showReceipt(id), 200); }
+  });
+}
+function claimForm(saleId, ix, serial){
+  const s = S.sales[saleId], i = s.items[ix];
+  modal(mhead('Log a warranty claim','Cancel') + `<div class="itemcell"><span class="glyph">${glyph(S.products[i.productId]?.category)}</span><span><b>${esc(i.name)}</b><br><span class="sub mono">${serial?'S/N '+esc(serial):'No serial'} · ${esc(custName(s.customerId))}</span></span></div>
+  <form id="clForm" class="stack" style="gap:16px"><div class="fields">
+    <label for="cl_type">What the customer needs<select id="cl_type"><option value="repair">Repair</option><option value="replacement">Replacement</option><option value="inspection">Inspection</option></select></label>
+    <label for="cl_date">Brought in<input id="cl_date" type="date" value="${todayISO()}"></label>
+    <label for="cl_note" class="full">Problem<textarea id="cl_note" rows="3" required placeholder="For example: not cooling, compressor noisy"></textarea></label>
+  </div><button class="primary" type="submit">Save claim</button></form>`);
+  $('#clForm').addEventListener('submit', async e => { e.preventDefault(); const ref = db.collection('claims').doc();
+    const ok = await write(()=>ref.set({ id:ref.id, saleId, itemIndex:ix, serial, productName:i.name, customerId:s.customerId||'', date: $('#cl_date').value || todayISO(), type: $('#cl_type').value, note: $('#cl_note').value.trim(), status:'open', staffId: meObj()?.id||'' }), 'Claim logged');
+    if (ok) closeModal(); });
+}
+function resolveForm(id){
+  const c = S.claims[id];
+  modal(mhead('Resolve claim','Cancel') + `<p style="margin:0"><b>${esc(c.productName)}</b> · ${esc(custName(c.customerId))}<br><span class="sub">${esc(c.note)}</span></p>
+  <form id="rsvForm" class="stack" style="gap:16px"><label for="rv_out">What was done<textarea id="rv_out" rows="3" required placeholder="For example: replaced thermostat, returned to customer"></textarea></label>
+  <button class="primary" type="submit">Mark resolved</button></form>`);
+  $('#rsvForm').addEventListener('submit', async e => { e.preventDefault();
+    if (await write(()=>db.collection('claims').doc(id).update({ status:'done', outcome: $('#rv_out').value.trim(), resolvedAt: todayISO(), resolvedBy: meObj()?.id||'' }), 'Claim resolved')) closeModal(); });
+}
+function closeDayForm(){
+  const t = todayISO(), f = flow(t, t), prev = S.closes[t];
+  modal(mhead('Close the day','Cancel') + `<p class="muted" style="margin:0">${fmtD(t)}. Expected amounts come from today’s sales, plan payments and refunds.</p>
+  <form id="cdForm" class="stack" style="gap:16px"><div class="tw"><table class="flowtable"><thead><tr><th>Method</th><th class="r">Expected</th><th class="r">Counted</th></tr></thead><tbody>
+    <tr><td>Cash drawer</td><td class="r num">${money(f.by.cash)}</td><td class="r"><input id="cd_cash" type="number" step="0.01" inputmode="decimal" required value="${prev?esc(prev.counted.cash):''}" aria-label="Cash counted"></td></tr>
+    <tr><td>Mobile money wallet</td><td class="r num">${money(f.by.momo)}</td><td class="r"><input id="cd_momo" type="number" step="0.01" inputmode="decimal" required value="${prev?esc(prev.counted.momo):''}" aria-label="Mobile money counted"></td></tr>
+    <tr><td>Card</td><td class="r num">${money(f.by.card)}</td><td class="r sub">Check the card machine report</td></tr>
+    <tr><td>Bank transfer</td><td class="r num">${money(f.by.transfer)}</td><td class="r sub">Check the bank app</td></tr>
+  </tbody></table></div>
+  <label for="cd_note">Note<input id="cd_note" placeholder="For example: GH₵ 20 paid out for transport" value="${prev?esc(prev.note):''}"></label>
+  <div id="cdDiff" class="closed"></div>
+  <button class="primary" type="submit">Save day close</button></form>`);
+  const show = () => { const dc = round2((Number($('#cd_cash').value)||0) - f.by.cash), dm = round2((Number($('#cd_momo').value)||0) - f.by.momo);
+    $('#cdDiff').innerHTML = $('#cd_cash').value!=='' || $('#cd_momo').value!=='' ? `<div class="bar"><span>Cash</span>${diffPill('Cash',dc)}</div><div class="bar"><span>Mobile money</span>${diffPill('MoMo',dm)}</div>` : ''; };
+  $('#cdForm').addEventListener('input', show); show();
+  $('#cdForm').addEventListener('submit', async e => { e.preventDefault();
+    const cash = round2($('#cd_cash').value), momo = round2($('#cd_momo').value);
+    const doc = { date:t, expected:f.by, counted:{ cash, momo }, diff:{ cash: round2(cash - f.by.cash), momo: round2(momo - f.by.momo) }, note: $('#cd_note').value.trim(), staffId: meObj()?.id||'', at: new Date().toISOString() };
+    if (await write(()=>db.collection('closes').doc(t).set(doc), 'Day closed')) closeModal(); });
+}
+function productForm(id){
+  const p = id ? S.products[id] : { name:'', brand:'', category:'Refrigerators', cost:'', price:'', stock:0, reorderAt:2, warrantyMonths:12, energy:'' };
+  const cats = [...new Set(['Refrigerators','Freezers','Washing machines','Televisions','Air conditioners','Cookers','Microwaves','Blenders','Fans','Irons', ...list(S.products).map(x=>x.category)])];
+  modal(mhead(id?'Edit item':'Add item','Cancel') + `
+  <form id="prodForm" class="stack" style="gap:18px"><div class="fields">
+    <label for="pf_brand">Brand<input id="pf_brand" required value="${esc(p.brand)}"></label>
+    <label for="pf_name">Model<input id="pf_name" required value="${esc(p.name)}"></label>
+    <label for="pf_cat">Category<input id="pf_cat" list="catlist" required value="${esc(p.category)}"><datalist id="catlist">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>
+    <label for="pf_war">Warranty (months)<input id="pf_war" type="number" min="0" value="${esc(p.warrantyMonths||0)}"></label>
+    <label for="pf_cost">Cost price<input id="pf_cost" type="number" min="0" step="0.01" required value="${esc(p.cost)}"></label>
+    <label for="pf_price">Selling price<input id="pf_price" type="number" min="0" step="0.01" required value="${esc(p.price)}"></label>
+    <label for="pf_stock">On shelf<input id="pf_stock" type="number" min="0" required value="${esc(p.stock)}"></label>
+    <label for="pf_reorder">Reorder when at<input id="pf_reorder" type="number" min="0" value="${esc(p.reorderAt ?? 2)}"></label>
+    <label for="pf_energy" class="full">Energy rating<select id="pf_energy"><option value="">Not rated</option>${'ABCDEFG'.split('').map(l=>`<option ${p.energy===l?'selected':''}>${l}</option>`).join('')}</select></label>
+    <label for="pf_serials" class="full">Serial numbers on the shelf, one per line<textarea id="pf_serials" rows="4" class="mono" placeholder="HSR34-77901&#10;HSR34-77902">${esc(serialsOf(p).join('\n'))}</textarea><span class="sub" style="font-weight:400">When serials are listed, the shelf count is the number of serials.</span></label>
+  </div><span class="err" id="pfErr" role="alert"></span><div class="bar">${id&&can('deleteItems')?`<button type="button" class="small" data-delprod="${id}">Delete item</button>`:'<span></span>'}<button class="primary" type="submit">Save item</button></div></form>`);
+  $('#prodForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const g = k => $('#pf_'+k).value.trim();
+    const serials = parseSerials($('#pf_serials').value);
+    const clash = serials.find(sn => serialOwner(sn, id));
+    if (clash) { const o = serialOwner(clash, id); $('#pfErr').textContent = 'Serial '+clash+' is already on '+o.brand+' '+o.name+'.'; return; }
+    const data = { brand:g('brand'), name:g('name'), category:g('cat'), cost:Number(g('cost')), price:Number(g('price')), stock: serials.length || (parseInt(g('stock'))||0), serials, reorderAt:parseInt(g('reorder'))||0, warrantyMonths:parseInt(g('war'))||0, energy:$('#pf_energy').value };
+    const ok = await write(async ()=>{ if (id) { const L = await withLock(id); await L.ref.update(data); } else { const ref = db.collection('products').doc(); await ref.set({ id: ref.id, ...data }); } }, 'Item saved');
+    if (ok) closeModal();
+  });
+}
+function confirmDelete(id){
+  const p = S.products[id];
+  modal(`<h2>Delete ${esc(p.brand)} ${esc(p.name)}?</h2><p class="muted" style="margin:0">Past sales and warranty records keep their details. This only removes the item from stock.</p>
+    <div class="bar"><button data-close>Keep it</button><button class="primary" style="background:var(--bad);border-color:var(--bad)" id="doDel">Delete item</button></div>`);
+  $('#doDel').onclick = async () => { if (await write(()=>db.collection('products').doc(id).delete(), 'Item deleted')) closeModal(); };
+}
+function restockForm(id){
+  const p = S.products[id];
+  modal(mhead('Restock','Cancel') + `<div class="itemcell"><span class="glyph">${glyph(p.category)}</span><span><b>${esc(p.brand)} ${esc(p.name)}</b><br><span class="sub">${p.stock} on the shelf now</span></span></div>
+    <form id="rsForm" class="stack" style="gap:18px"><div class="fields">
+    <label for="rs_serials" class="full">Serial numbers received, one per line<textarea id="rs_serials" rows="5" class="mono" placeholder="Type or scan each serial"></textarea></label>
+    <label for="rs_qty">Units without serials<input id="rs_qty" type="number" min="0" value="0"></label>
+    <label for="rs_cost">Cost per unit<input id="rs_cost" type="number" min="0" step="0.01" value="${esc(p.cost)}"></label></div>
+    <span class="err" id="rsErr" role="alert"></span><button class="primary" type="submit">Add to stock</button></form>`);
+  $('#rsForm').addEventListener('submit', async e => { e.preventDefault();
+    const fresh = parseSerials($('#rs_serials').value); const extra = parseInt($('#rs_qty').value)||0; const q = fresh.length + extra; const c = Number($('#rs_cost').value)||p.cost;
+    const other = fresh.find(sn => serialOwner(sn, id)); if (other) { $('#rsErr').textContent = 'Serial '+other+' is already on another item.'; return; }
+    if (!q) { $('#rsErr').textContent = 'Enter the serial numbers or a number of units.'; return; }
+    const ok = await write(async () => { const L = await withLock(id); const cur = L.data;
+      const dup = fresh.find(sn => serialsOf(cur).includes(sn)); if (dup) throw { code:'stale', message:'Serial '+dup+' is already on the shelf.' };
+      await L.ref.update({ stock:(cur.stock||0)+q, serials:[...serialsOf(cur), ...fresh], cost:c }); }, q+(q===1?' unit':' units')+' added');
+    if (ok) closeModal(); });
+}
+function serialList(id){
+  const p = S.products[id];
+  modal(mhead('Serials on the shelf') + `<div class="itemcell"><span class="glyph">${glyph(p.category)}</span><span><b>${esc(p.brand)} ${esc(p.name)}</b><br><span class="sub">${serialsOf(p).length} with serials · ${p.stock} on shelf</span></span></div>
+    <div class="printed" id="snList">${esc(serialsOf(p).join('\n'))}</div>
+    <div class="bar"><span class="sub">Edit the item to correct a serial.</span><button data-copy="snList">Copy list</button></div>`);
+}
+function customerForm(from){
+  modal(mhead('Add customer','Cancel') + `
+  <form id="custForm" class="stack" style="gap:18px"><div class="fields">
+    <label for="cf_name" class="full">Full name<input id="cf_name" required></label>
+    <label for="cf_phone">Phone<input id="cf_phone" type="tel" required placeholder="024 000 0000"></label>
+    <label for="cf_area">Area or landmark<input id="cf_area"></label>
+    <label for="cf_id" class="full">ID number (for installment buyers)<input id="cf_id" placeholder="Ghana Card or other ID"></label>
+  </div><button class="primary" type="submit">Save customer</button></form>`);
+  $('#custForm').addEventListener('submit', async e => { e.preventDefault(); const ref = db.collection('customers').doc();
+    const ok = await write(()=>ref.set({ id:ref.id, name:$('#cf_name').value.trim(), phone:$('#cf_phone').value.trim(), area:$('#cf_area').value.trim(), idNumber:$('#cf_id').value.trim(), createdAt: todayISO() }), 'Customer added');
+    if (ok){ if (from==='sell') cart.customerId = ref.id; closeModal(); render(); } });
+}
+function payForm(id){
+  const p = S.plans[id], st = planStats(p);
+  const suggest = Math.min(st.balance, st.arrears > 0 ? st.arrears : p.instalment);
+  modal(mhead('Take payment','Cancel') + `
+    <div class="person" style="padding:0;border:0">${avatar(p.customerId)}<div class="who"><b>${esc(custName(p.customerId))}</b><span class="sub">${esc(p.productName)}</span></div><span class="pill ${st.cls}">${st.label}</span></div>
+    <div class="figs"><div><span class="kicker">Balance</span><b>${money(st.balance)}</b></div><div><span class="kicker">Instalment</span><b>${money(p.instalment)}</b></div><div><span class="kicker">Overdue</span><b>${money(st.arrears)}</b></div></div>
+    <form id="payForm" class="stack" style="gap:18px"><div class="fields">
+      <label for="py_amt">Amount received<input id="py_amt" type="number" min="0.01" step="0.01" max="${st.balance}" required value="${suggest.toFixed(2)}"></label>
+      <label for="py_m">Paid by<select id="py_m">${payOptions('cash')}</select></label>
+    </div><span class="err" id="pyErr" role="alert"></span><button class="go" type="submit" style="padding:14px">Record payment</button></form>`);
+  $('#payForm').addEventListener('submit', async e => { e.preventDefault(); const amt = round2(Number($('#py_amt').value));
+    if (!(amt>0) || amt > st.balance+0.01) { $('#pyErr').textContent = 'Enter an amount up to the balance of '+plain(st.balance)+'.'; return; }
+    const ok = await write(async () => { const fresh = (await db.collection('plans').doc(id).get()).data() || S.plans[id];
+      await db.collection('plans').doc(id).update({ payments: [...(fresh.payments||[]), { date: todayISO(), amount: amt, method: $('#py_m').value, staffId: meObj()?.id||'' }] }); }, 'Payment recorded');
+    if (ok) closeModal(); });
+}
+function reminderText(p){
+  const st = planStats(p), c = S.customers[p.customerId];
+  const first = (c?.name||'').split(' ')[0] || 'there';
+  return st.status==='overdue'
+    ? `Hello ${first}, this is ${S.settings.name}. Your payment of ${plain(st.arrears)} for the ${p.productName} is ${st.late} day${st.late===1?'':'s'} late. Please pay by cash or mobile money at the shop as soon as you can. Balance remaining: ${plain(st.balance)}. Thank you.`
+    : `Hello ${first}, this is ${S.settings.name}. A friendly reminder that your next payment of ${plain(p.instalment)} for the ${p.productName} is due on ${fmtD(st.nextDue)}. Balance remaining: ${plain(st.balance)}. Thank you.`;
+}
+function planDetail(id){
+  const p = S.plans[id], st = planStats(p), live = !['paid','cancelled'].includes(st.status);
+  const lab = { paid:['good','Paid'], part:['warn','Part paid'], miss:['bad','Missed'], up:['plain', p.cancelled?'Cancelled':'Upcoming'] };
+  const ph = S.customers[p.customerId]?.phone||'';
+  modal(mhead(esc(custName(p.customerId))) + `
+    <div class="bar"><span>${esc(p.productName)} · <b class="num">${money(p.total)}</b></span><span class="pill ${st.cls}">${st.label}</span></div>
+    <div class="strip"><i class="dep"></i>${scheduleStates(p).map(x=>`<i class="${x.s}"></i>`).join('')}</div>
+    <div class="sched">
+      <div class="s"><span>${fmtD(p.startDate)} · deposit</span><span class="num">${money(p.deposit)}</span><span class="pill good">Paid</span></div>
+      ${scheduleStates(p).map(x=>`<div class="s"><span>${fmtD(x.due)}</span><span class="num">${money(p.instalment)}</span><span class="pill ${lab[x.s][0]}">${lab[x.s][1]}</span></div>`).join('')}
+    </div>
+    <div><span class="kicker">Payments received</span><div class="sched">${(p.payments||[]).map(x=>`<div class="s"><span>${fmtD(x.date)} · ${PAYM[x.method]||x.method}${x.deposit?' · deposit':''}${x.staffId?' · '+esc(staffName(x.staffId)):''}</span><b class="num">${money(x.amount)}</b></div>`).join('')}</div></div>
+    ${live?`<div class="stack" style="gap:10px"><span class="kicker">Reminder message</span><div class="printed" id="remTxt">${esc(reminderText(p))}</div>
+    <div class="bar"><span class="sub mono">${esc(ph)}</span><span style="display:flex;gap:8px">${waBtn(ph, reminderText(p))}<button data-copy="remTxt">Copy</button></span></div></div>`:''}
+    ${live&&can('pay')?`<button class="go" data-pay="${p.id}" style="padding:14px">Take payment</button>`:''}`);
+}
+function customerDetail(id){
+  const c = S.customers[id];
+  const ss = list(S.sales).filter(s=>s.customerId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  modal(mhead(esc(c.name)) + `<div class="person" style="padding:0;border:0">${avatar(id)}<div class="who"><span class="mono">${esc(c.phone)}</span><span class="sub" style="display:block">${esc(c.area||'')}${c.idNumber?' · ID '+esc(c.idNumber):''} · since ${fmtD(c.createdAt)}</span></div>${waBtn(c.phone, 'Hello ' + c.name.split(' ')[0] + ', this is ' + S.settings.name + '. ')}</div>
+    <div class="people">${ss.map(s=>`<div class="person"><div class="who"><b>${esc(s.items.map(i=>i.name).join(', '))}</b><span class="sub">${fmtDT(s.date)} · ${METHODS[s.method]}${s.items.some(i=>unitSerials(i).length)?' · S/N '+esc(s.items.flatMap(unitSerials).join(', ')):''}</span></div>${retPill(s)}<button class="small" data-receipt="${s.id}">${money(s.total)}</button></div>`).join('') || '<div class="empty">No purchases yet.</div>'}</div>`);
+}
+function serialForm(){
+  const items = cart.items, fields = [];
+  items.forEach((i,ix) => { const avail = serialsOf(S.products[i.productId]);
+    for (let u=0; u<i.qty; u++){ const fid = `sn_${ix}_${u}`; const lbl = esc(i.name) + (i.qty>1?` · unit ${u+1}`:'');
+      const pref = (i.pref||[]).filter(x=>avail.includes(x)); const rest = avail.filter(x=>!pref.includes(x)); const want = pref[u] ?? rest[u - pref.length] ?? avail[u];
+      fields.push(avail.length
+        ? `<label for="${fid}" class="full">${lbl}<select id="${fid}" class="mono" data-item="${ix}">${avail.map(sn=>`<option ${sn===want?'selected':''}>${esc(sn)}</option>`).join('')}</select></label>`
+        : `<label for="${fid}" class="full">${lbl}<input id="${fid}" autocomplete="off" class="mono" data-item="${ix}" placeholder="No serials on file. Type it, or leave blank"></label>`); } });
+  modal(mhead('Which units are going out?','Back') + `<p class="muted" style="margin:0">Pick the serial number on each box. It comes off the shelf list and goes on the receipt for warranty claims.</p>
+    <form id="serForm" class="stack" style="gap:18px"><div class="fields">${fields.join('')}</div><span class="err" id="serErr" role="alert"></span>
+    <button class="go" type="submit" style="padding:14px">Record sale · ${money(round2(cartSub()-cartDisc()))}</button></form>`);
+  $('#serForm').addEventListener('submit', e => { e.preventDefault();
+    const chosen = items.map(()=>[]);
+    document.querySelectorAll('#serForm [data-item]').forEach(el => { const v = el.value.trim().toUpperCase(); if (v) chosen[+el.dataset.item].push(v); });
+    const all = chosen.flat(); const dup = all.find((v,k)=>all.indexOf(v)!==k);
+    if (dup) { $('#serErr').textContent = 'Serial '+dup+' is picked twice.'; return; }
+    items.forEach((i,ix)=>{ i.serials = chosen[ix]; });
+    e.submitter && (e.submitter.disabled = true);
+    completeSale().finally(()=>{ const b = $('#serForm button[type=submit]'); if (b) b.disabled = false; }); });
+}
+async function completeSale(){
+  const sub = cartSub(), disc = cartDisc(), total = round2(sub - disc);
+  const items = cart.items.map(i=>({...i}));
+  const byProd = {}; items.forEach(i => { (byProd[i.productId] ||= []).push(i); });
+  const staffId = meObj()?.id || '';
+  let saleId = null;
+  const ok = await write(async () => {
+    const locked = {};
+    for (const pid of Object.keys(byProd)) {
+      const L = await withLock(pid);
+      if (!L.data) throw { code:'stale', message:'An item in this sale was just deleted. Remove it and try again.' };
+      const need = byProd[pid].reduce((a,i)=>a+i.qty,0);
+      if ((L.data.stock||0) < need) throw { code:'stale', message:`Only ${L.data.stock} ${L.data.brand} ${L.data.name} left on the shelf. Another till may have just sold one.` };
+      const have = serialsOf(L.data);
+      for (const i of byProd[pid]) for (const sn of (i.serials||[])) if (have.length && !have.includes(sn)) throw { code:'stale', message:`Serial ${sn} was just sold on another till. Pick another unit.` };
+      locked[pid] = L;
+    }
+    const sref = db.collection('sales').doc(); saleId = sref.id;
+    const sale = { id:sref.id, receipt:'R-' + Date.now().toString(36).slice(-6).toUpperCase(), date:new Date().toISOString(), customerId:cart.customerId||'', method:cart.method, subtotal:sub, discount:disc, discountNote: disc ? cart.discNote.trim() : '', total, staffId,
+      items: items.map(i=>({ productId:i.productId, name:i.name, qty:i.qty, price:i.price, cost: Number(locked[i.productId].data.cost||0), serials:i.serials||[], serial:(i.serials||[]).join(', '), warrantyMonths:i.warrantyMonths||0 })) };
+    let pref = null;
+    if (cart.method==='installment'){ pref = db.collection('plans').doc(); sale.deposit = round2(Number(cart.deposit)||0); sale.depositMethod = cart.depositMethod; sale.planId = pref.id; }
+    await sref.set(sale);
+    if (pref) { const dep = sale.deposit; await pref.set({ id:pref.id, saleId:sref.id, customerId:cart.customerId, productName: items.map(i=>i.name).join(', '), total, deposit:dep, count:cart.count, freq:cart.freq, instalment: round2((total-dep)/cart.count), startDate: todayISO(), payments: dep>0?[{ date:todayISO(), amount:dep, method:cart.depositMethod, deposit:true, staffId }]:[] }); }
+    for (const pid of Object.keys(locked)) { const { ref, data } = locked[pid]; const sold = byProd[pid].flatMap(i=>i.serials||[]); const qty = byProd[pid].reduce((a,i)=>a+i.qty,0);
+      await ref.update({ stock: Math.max(0,(data.stock||0)-qty), serials: serialsOf(data).filter(sn=>!sold.includes(sn)) }); }
+  }, 'Sale recorded');
+  if (!ok) return;
+  Object.assign(cart, freshCart());
+  closeModal(); render();
+  setTimeout(()=>showReceipt(saleId), 200);
+}
+function moreSheet(){
+  const vis = TABS.filter(([k,,r]) => !MOBILE.includes(k) && rank() >= r);
+  modal(mhead('More') + `<div class="sheet">${vis.map(([k,l])=>`<button data-tab="${k}">${IC[k]}${l}</button>`).join('')}</div>`);
+}
+
+/* ================= Events ================= */
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) { if (e.target.id==='ov') closeModal(); return; }
+  const d = b.dataset;
+  if (d.tab){ tab = d.tab; ui.q=''; ui.cat='all'; try { localStorage.setItem('shopTab', tab); } catch(x){} closeModal(); render(); window.scrollTo(0,0); return; }
+  if ('close' in d) return closeModal();
+  if ('more' in d) return moreSheet();
+  if ('switch' in d){ setMe(null); pinFor = null; closeModal(); return render(); }
+  if (d.pick){ pinFor = d.pick; render(); setTimeout(()=>$('#pinIn')?.focus(), 30); return; }
+  if ('pinback' in d){ pinFor = null; return render(); }
+  if (d.cat){ ui.cat = d.cat; return render(); }
+  if (d.add){ const p = S.products[d.add]; const ex = cart.items.find(i=>i.productId===p.id);
+    if (ex){ if (ex.qty < p.stock) ex.qty++; else toast('Only '+p.stock+' on the shelf'); } else cart.items.push({ productId:p.id, name:p.brand+' '+p.name, price:p.price, qty:1, warrantyMonths:p.warrantyMonths });
+    return render(); }
+  if (d.inc){ const i = cart.items[+d.inc]; const p = S.products[i.productId]; if (i.qty < (p?.stock||0)) i.qty++; else toast('Only '+(p?.stock||0)+' on the shelf'); return render(); }
+  if (d.dec){ const i = cart.items[+d.dec]; i.qty--; if (i.pref) i.pref = i.pref.slice(0, i.qty); if (i.qty<=0) cart.items.splice(+d.dec,1); return render(); }
+  if (d.method){ cart.method = d.method; return render(); }
+  if (d.dtype){ cart.discType = d.dtype; return render(); }
+  if (b.id==='completeSale') return serialForm();
+  if (d.newcust) return customerForm(d.newcust);
+  if ('editprod' in d) return productForm(d.editprod);
+  if (d.delprod) return confirmDelete(d.delprod);
+  if (d.restock) return restockForm(d.restock);
+  if (d.serials) return serialList(d.serials);
+  if (d.pay) return payForm(d.pay);
+  if (d.plan) return planDetail(d.plan);
+  if (d.cust) return customerDetail(d.cust);
+  if (d.receipt) return showReceipt(d.receipt);
+  if (d.return) return returnForm(d.return);
+  if (d.claim){ const [sid, ix, sn] = d.claim.split('|'); return claimForm(sid, +ix, sn); }
+  if (d.resolve) return resolveForm(d.resolve);
+  if ('closeDay' in d) return closeDayForm();
+  if ('staff' in d) return staffForm(d.staff);
+  if (d.pf){ ui.planFilter = d.pf; return render(); }
+  if (d.period){ ui.period = d.period; return render(); }
+  if ('csv' in d) return downloadCsv();
+  if (d.print) return printReceipt(d.print);
+  if ('retry' in d) return boot();
+  if ('signout' in d){ API.setToken(null); setMe(null); signedOut(); BOOT.msg = ''; return render(); }
+  if ('changepw' in d) return passwordForm();
+  if (d.copy){ const el = document.getElementById(d.copy); const txt = el.textContent;
+    try { await navigator.clipboard.writeText(txt); toast('Copied'); }
+    catch(x){ const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Text selected. Copy it with your device.'); }
+  }
+});
+document.addEventListener('submit', async e => {
+  if (e.target.id === 'pinForm') { e.preventDefault(); const p = S.staff[pinFor]; const h = await hashPin($('#pinIn').value.trim());
+    if (p && h === p.pinHash) { setMe(p.id); pinFor = null; toast('Welcome, ' + p.name.split(' ')[0]); render(); }
+    else { $('#pinErr').textContent = 'That PIN is not right. Try again.'; $('#pinIn').value=''; $('#pinIn').focus(); } }
+  if (e.target.id === 'setForm') { e.preventDefault();
+    await write(()=>db.doc('settings/shop').set({ name:$('#st_name').value.trim(), currency:$('#st_cur').value.trim(), country:$('#st_cc').value.replace(/\D/g,'') }), 'Details saved'); }
+});
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
+let qTimer;
+const refocus = id => { const el = document.getElementById(id); if (el){ el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch(x){} } };
+const TYPING = ['sellQ','stockQ','custQ','saleQ','wQ','cartDep','cartCount','discVal','discNote'];
+document.addEventListener('input', e => {
+  const id = e.target.id, map = { sellQ:'q', stockQ:'q', custQ:'custQ', saleQ:'saleQ', wQ:'wq' };
+  if (map[id]){ clearTimeout(qTimer); qTimer = setTimeout(()=>{ ui[map[id]] = e.target.value;
+      if (id==='sellQ'){ const sn = e.target.value.trim().toUpperCase(); const p = sn && serialOwner(sn);
+        if (p && p.stock>0 && can('sell')){ const ex = cart.items.find(i=>i.productId===p.id);
+          if (ex){ if ((ex.pref||[]).includes(sn)) toast('That unit is already in this sale'); else if (ex.qty<p.stock){ ex.qty++; (ex.pref ||= []).push(sn); } }
+          else cart.items.push({ productId:p.id, name:p.brand+' '+p.name, price:p.price, qty:1, warrantyMonths:p.warrantyMonths, pref:[sn] });
+          ui.q=''; toast('Added '+p.brand+' '+p.name+' · S/N '+sn); render(); refocus(id); return; } }
+      render(); refocus(id); }, 220); }
+  else if (id==='cartDep'){ cart.deposit = e.target.value; clearTimeout(qTimer); qTimer = setTimeout(()=>{ render(); refocus(id); }, 450); }
+  else if (id==='cartCount'){ cart.count = Math.max(1, Math.min(36, parseInt(e.target.value)||1)); clearTimeout(qTimer); qTimer = setTimeout(()=>{ render(); refocus(id); }, 450); }
+  else if (id==='discVal'){ cart.discVal = e.target.value; clearTimeout(qTimer); qTimer = setTimeout(()=>{ render(); refocus(id); }, 450); }
+  else if (id==='discNote'){ cart.discNote = e.target.value; }
+});
+document.addEventListener('change', e => {
+  if (e.target.id==='cartCust'){ cart.customerId = e.target.value; render(); }
+  if (e.target.id==='cartFreq'){ cart.freq = e.target.value; render(); }
+  if (e.target.id==='cartDepM'){ cart.depositMethod = e.target.value; }
+});
+
+/* ================= Server connection ================= */
+const BOOT = { phase:'loading', msg:'', offline:false };
+const API = {
+  token: (() => { try { return localStorage.getItem('shopToken'); } catch(e) { return null; } })(),
+  setToken(t){ this.token = t; try { t ? localStorage.setItem('shopToken', t) : localStorage.removeItem('shopToken'); } catch(e){} },
+  async call(path, payload){
+    let r;
+    try { r = await fetch('/api/' + path, { method: payload ? 'POST' : 'GET', headers: { 'content-type':'application/json', ...(this.token ? { authorization:'Bearer ' + this.token } : {}) }, body: payload ? JSON.stringify(payload) : undefined }); }
+    catch(e){ setOffline(true); throw { code:'unavailable', message:'No connection. Check the internet and try again.' }; }
+    setOffline(false);
+    let j = null; try { j = await r.json(); } catch(e){}
+    if (r.status === 401 && path !== 'login') { signedOut(); throw { code:'auth', message:'Please sign in again.' }; }
+    if (!r.ok) throw { code: j?.code || (r.status >= 500 ? 'unavailable' : 'invalid_argument'), message: j?.message };
+    return j;
+  }
+};
+function setOffline(v){ if (BOOT.offline === v) return; BOOT.offline = v; const b = document.getElementById('netBanner'); if (b) b.hidden = !v; }
+function signedOut(){ API.setToken(null); store?.stop(); db = null; store = null; BOOT.phase = 'login'; BOOT.msg = 'You were signed out. Enter the shop password to continue.'; for (const k in ready) ready[k] = false; closeModal(); render(); }
+
+/* A small client store with the same calls the app already makes (collection, doc, onSnapshot, acquire),
+   kept in step with the server by polling. */
+let store = null;
+function makeStore(){
+  const data = {}; const listeners = []; let rev = 0, timer = null, first = false, stopped = false;
+  const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
+  const fire = cols => listeners.forEach(l => { if (!cols || cols.has(l.col)) l.run(); });
+  function apply(rows){ const cols = new Set();
+    for (const r of rows){ cols.add(r.col); const c = data[r.col] || (data[r.col] = {});
+      if (r.deleted) delete c[r.id]; else c[r.id] = r.data;
+      if (r.rev > rev) rev = r.rev; }
+    if (rows.length && first) fire(cols); }
+  async function pull(){
+    let more = true;
+    while (more) { const j = await API.call('sync?since=' + rev); apply(j.docs); rev = Math.max(rev, j.rev || 0); more = j.more; }
+    if (!first) { first = true; fire(); }
+  }
+  function loop(){ if (stopped) return; clearTimeout(timer); timer = setTimeout(async () => { if (document.visibilityState === 'visible') { try { await pull(); } catch(e){} } loop(); }, 4000); }
+  document.addEventListener('visibilitychange', () => { if (!stopped && document.visibilityState === 'visible') pull().catch(()=>{}); });
+  const snap = (id, d) => ({ id, exists: d != null, data: () => clone(d), metadata: { fromCache:false, hasPendingWrites:false } });
+  async function writeOps(ops){ const j = await API.call('write', { ops }); apply(j.docs); fire(new Set(ops.map(o=>o.col))); }
+  const newId = () => 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  function docRef(col, id){ return { id, path: col + '/' + id,
+    async get(){ const j = await API.call('doc?col=' + encodeURIComponent(col) + '&id=' + encodeURIComponent(id)); return snap(id, j.exists ? j.data : null); },
+    set: d => writeOps([{ op:'set', col, id, data:d }]),
+    update: d => writeOps([{ op:'update', col, id, data:d }]),
+    delete: () => writeOps([{ op:'delete', col, id }]),
+    acquire: o => API.call('lock', { key: col + '/' + id, holder: o.holder, ttl: o.ttlMs }),
+    onSnapshot(next){ const l = { col, run: () => next(snap(id, (data[col]||{})[id])) }; listeners.push(l); if (first) l.run(); return () => listeners.splice(listeners.indexOf(l), 1); } }; }
+  return {
+    collection: col => ({ path: col, doc: id => docRef(col, id || newId()),
+      onSnapshot(next, err){ const l = { col, run: () => next({ docs: Object.entries(data[col]||{}).map(([id,d]) => snap(id, d)) }) }; listeners.push(l); if (first) l.run(); return () => listeners.splice(listeners.indexOf(l), 1); } }),
+    doc: path => { const [c, i] = path.split('/'); return docRef(c, i); },
+    async start(){ await pull(); loop(); },
+    stop(){ stopped = true; clearTimeout(timer); },
+  };
+}
+const fileSaver = { async save({ filename, data }){ const url = URL.createObjectURL(new Blob([data], { type:'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 2000); return { status:'saved' }; } };
+
+/* ================= First run, sign in ================= */
+function bootView(){
+  const card = inner => `<div class="lock"><span class="kicker">${esc(S.settings.name || 'Shop till')}</span>${inner}</div>`;
+  if (BOOT.phase === 'loading') return card(`<h2>Opening the till…</h2>`);
+  if (BOOT.phase === 'error') return card(`<h2>Can’t reach the shop server</h2><p class="muted" style="margin:0">${esc(BOOT.msg || 'Check the internet connection, then try again.')}</p><button class="primary" data-retry style="align-self:center">Try again</button>`);
+  if (BOOT.phase === 'nodb') return card(`<h2>Connect the database</h2><div class="card" style="text-align:left"><p style="margin-top:0">This app is deployed, but no database is connected to it yet.</p><ol style="margin:0;padding-left:20px;line-height:1.7"><li>Open this project on vercel.com.</li><li>Go to <b>Storage</b> and connect a <b>Neon</b> Postgres database.</li><li>Redeploy the project, then reload this page.</li></ol></div>`);
+  if (BOOT.phase === 'setup') return card(`<h2>Set up your shop</h2><p class="muted" style="margin:0">Choose the password your till devices will sign in with. You need the setup code you were given with this app.</p>
+    <form id="setupForm" class="card stack" style="gap:14px;text-align:left">
+      <label for="su_code">Setup code<input id="su_code" class="mono" autocomplete="off" required></label>
+      <label for="su_pw">Shop password<input id="su_pw" type="password" minlength="8" autocomplete="new-password" required></label>
+      <label for="su_pw2">Type it again<input id="su_pw2" type="password" minlength="8" autocomplete="new-password" required></label>
+      <label class="check"><input type="checkbox" id="su_seed" checked>Start with the sample records from the prototype</label>
+      <span class="err" id="suErr" role="alert"></span>
+      <button class="go" type="submit" style="padding:14px">Set up the shop</button></form>`);
+  return card(`<h2>Sign in to the till</h2>${BOOT.msg?`<p class="muted" style="margin:0">${esc(BOOT.msg)}</p>`:''}
+    <form id="loginForm" class="card stack" style="gap:14px;text-align:left;max-width:380px;margin:0 auto;width:100%">
+      <label for="li_pw">Shop password<input id="li_pw" type="password" autocomplete="current-password" required></label>
+      <span class="err" id="liErr" role="alert"></span>
+      <button class="go" type="submit" style="padding:14px">Sign in</button></form>`);
+}
+async function boot(){
+  BOOT.phase = 'loading'; render();
+  let st;
+  try { st = await API.call('status'); }
+  catch(e){ BOOT.phase = 'error'; BOOT.msg = e.message; return render(); }
+  if (!st.db) { BOOT.phase = 'nodb'; return render(); }
+  if (!st.setup) { BOOT.phase = 'setup'; return render(); }
+  if (!API.token) { BOOT.phase = 'login'; return render(); }
+  await connect();
+}
+async function connect(){
+  store = makeStore();
+  const s = store;
+  for (const col of COLS) s.collection(col).onSnapshot(snap => { const m = {}; snap.docs.forEach(d=>{ m[d.id] = { ...d.data(), id:d.id }; }); S[col] = m; ready[col] = true; safeRender(); });
+  s.doc('settings/shop').onSnapshot(x => { if (x.exists) S.settings = { ...S.settings, ...x.data() }; safeRender(); });
+  try { await s.start(); db = s; dl = fileSaver; BOOT.phase = 'ready'; render(); }
+  catch(e){ if (e.code === 'auth') return; BOOT.phase = 'error'; BOOT.msg = e.message; render(); }
+}
+document.addEventListener('submit', async e => {
+  if (e.target.id === 'setupForm') { e.preventDefault(); const err = $('#suErr');
+    if ($('#su_pw').value !== $('#su_pw2').value) { err.textContent = 'The two passwords are different.'; return; }
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+    try { const j = await API.call('setup', { code: $('#su_code').value.trim(), password: $('#su_pw').value, seed: $('#su_seed').checked }); API.setToken(j.token); toast('Shop set up'); await connect(); }
+    catch(x){ err.textContent = x.message || 'Could not set up the shop.'; btn.disabled = false; } }
+  if (e.target.id === 'loginForm') { e.preventDefault(); const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+    try { const j = await API.call('login', { password: $('#li_pw').value }); API.setToken(j.token); BOOT.msg = ''; await connect(); }
+    catch(x){ $('#liErr').textContent = x.message || 'Could not sign in.'; btn.disabled = false; $('#li_pw').select(); } }
+  if (e.target.id === 'pwForm') { e.preventDefault(); const err = $('#pwErr');
+    if ($('#pw_new').value !== $('#pw_new2').value) { err.textContent = 'The two new passwords are different.'; return; }
+    try { const j = await API.call('password', { current: $('#pw_cur').value, next: $('#pw_new').value }); API.setToken(j.token); closeModal(); toast('Password changed. Other devices must sign in again.'); }
+    catch(x){ err.textContent = x.message || 'Could not change the password.'; } }
+});
+function passwordForm(){
+  modal(mhead('Change shop password','Cancel') + `<form id="pwForm" class="stack" style="gap:16px">
+    <label for="pw_cur">Current password<input id="pw_cur" type="password" autocomplete="current-password" required></label>
+    <label for="pw_new">New password<input id="pw_new" type="password" minlength="8" autocomplete="new-password" required></label>
+    <label for="pw_new2">New password again<input id="pw_new2" type="password" minlength="8" autocomplete="new-password" required></label>
+    <p class="sub" style="margin:0">Every other device will be signed out and needs the new password.</p>
+    <span class="err" id="pwErr" role="alert"></span><button class="primary" type="submit">Change password</button></form>`);
+}
+function printReceipt(id){
+  const s = S.sales[id]; if (!s) return;
+  let el = document.getElementById('printArea'); if (!el) { el = document.createElement('div'); el.id = 'printArea'; document.body.appendChild(el); }
+  el.textContent = receiptText(s);
+  window.print();
+}
+
+/* ================= Data ================= */
+function safeRender(){ const a = document.activeElement; if (a && a.id && TYPING.includes(a.id) && $('#view').contains(a)) { renderNav(); return; } if ($('#pinIn') && document.activeElement === $('#pinIn')) { renderNav(); return; } const y = scrollY; render(); scrollTo(0,y); }
+if ('serviceWorker' in navigator && location.protocol === 'https:') window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+boot();
+})();
+</script>
+</body>
+</html>
