@@ -1,6 +1,6 @@
 // Keeps the app shell available when the connection drops. Shop data always comes live from /api.
-const CACHE = 'shop-till-v2';
-const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icon-192.png'];
+const CACHE = 'shop-till-v3';
+const SHELL = ['/', '/manifest.webmanifest', '/logo.png', '/favicon.png', '/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

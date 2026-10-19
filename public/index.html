@@ -7,8 +7,8 @@
 <meta name="description" content="Shop till for Unicorn Home Appliances">
 <meta name="theme-color" content="#b3184d">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Unicorn">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,6 +52,12 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 /* Sidebar */
 aside{background:var(--side);color:var(--side-ink);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:24px;padding:24px 16px 20px max(16px,env(safe-area-inset-left,0px));overflow-y:auto}
 .mark{display:flex;flex-direction:column;gap:10px;padding:0 6px}
+.brandrow{display:flex;align-items:center;gap:12px}
+.logo{width:64px;height:64px;flex:none;object-fit:contain;filter:drop-shadow(0 4px 10px rgb(0 0 0 / .18))}
+.mobilebar .brandrow{gap:10px;min-width:0}
+.mobilebar .logo{width:40px;height:40px}
+.lock .logo{width:120px;height:120px;margin:0 auto}
+#printArea .plogo{display:block;width:30mm;height:30mm;margin:0 auto 2mm;object-fit:contain;filter:grayscale(1) contrast(1.2)}
 .mark .eyebrow{font:600 11px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--side-muted)}
 .mark h1{font:800 27px/1 var(--display);letter-spacing:-.02em;margin:0;text-wrap:balance;overflow-wrap:anywhere}
 .label{display:flex;gap:2px;height:6px}
@@ -239,7 +245,7 @@ td.r,th.r{text-align:right}
   aside{display:none}
   .mobilebar{display:flex;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--side);color:var(--side-ink);align-items:center;justify-content:space-between;gap:12px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
   .mobilebar b{font:800 19px/1.1 var(--display);letter-spacing:-.01em;min-width:0;overflow-wrap:anywhere}
-  .mobilebar button{background:none;border:1px solid var(--side-hi);color:var(--side-muted);padding:7px 10px;font-size:12px}
+  .mobilebar button{white-space:nowrap;flex:none;background:none;border:1px solid var(--side-hi);color:var(--side-muted);padding:7px 10px;font-size:12px}
   .tabbar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--side);padding:6px max(4px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(4px,env(safe-area-inset-left,0px))}
   .tabbar button{background:none;border:0;color:var(--side-muted);display:flex;flex-direction:column;align-items:center;gap:3px;font:600 10px var(--body);padding:6px 2px;border-radius:8px;position:relative}
   .tabbar button svg{width:21px;height:21px}
@@ -358,7 +364,7 @@ textarea{min-height:44px}
 <div class="app">
   <aside>
     <div class="mark">
-      <span class="eyebrow">Shop till</span>
+      <div class="brandrow"><img class="logo" src="/logo.png" alt="" width="64" height="64"><span class="eyebrow">Shop till</span></div>
       <h1 id="shopName">Unicorn Home Appliances</h1>
       <div class="label" aria-hidden="true"><i class="e-A"></i><i class="e-B"></i><i class="e-C"></i><i class="e-D"></i><i class="e-E"></i><i class="e-F"></i><i class="e-G"></i></div>
     </div>
@@ -368,7 +374,7 @@ textarea{min-height:44px}
       <div id="onTill"></div>
     </div>
   </aside>
-  <div class="mobilebar"><b id="shopNameM">Unicorn Home Appliances</b><div class="right" id="mobileRight"></div></div>
+  <div class="mobilebar"><span class="brandrow"><img class="logo" src="/logo.png" alt="" width="40" height="40"><b id="shopNameM">Unicorn Home Appliances</b></span><div class="right" id="mobileRight"></div></div>
   <main><div class="inner" id="view"><div class="empty">Opening the shop records…</div></div></main>
   <nav class="tabbar" id="tabBar" aria-label="Sections"></nav>
 </div>
@@ -1776,7 +1782,7 @@ const fileSaver = { async save({ filename, data }){ const url = URL.createObject
 
 /* ================= First run, sign in ================= */
 function bootView(){
-  const card = inner => `<div class="lock"><span class="kicker">${esc(S.settings.name || 'Unicorn Home Appliances')}</span>${inner}</div>`;
+  const card = inner => `<div class="lock"><img class="logo" src="/logo.png" alt="Unicorn Home Appliances" width="120" height="120"><span class="kicker">${esc(S.settings.name || 'Unicorn Home Appliances')}</span>${inner}</div>`;
   if (BOOT.phase === 'loading') return card(`<h2>Opening the till…</h2>`);
   if (BOOT.phase === 'error') return card(`<h2>Can’t reach the shop server</h2><p class="muted" style="margin:0">${esc(BOOT.msg || 'Check the internet connection, then try again.')}</p><button class="primary" data-retry style="align-self:center">Try again</button>`);
   if (BOOT.phase === 'nodb') return card(`<h2>Connect the database</h2><div class="card" style="text-align:left"><p style="margin-top:0">This app is deployed, but no database is connected to it yet.</p><ol style="margin:0;padding-left:20px;line-height:1.7"><li>Open this project on vercel.com.</li><li>Go to <b>Storage</b> and connect a <b>Neon</b> Postgres database.</li><li>Redeploy the project, then reload this page.</li></ol></div>`);
@@ -1841,8 +1847,8 @@ function passwordForm(){
 function printReceipt(id){
   const s = S.sales[id]; if (!s) return;
   let el = document.getElementById('printArea'); if (!el) { el = document.createElement('div'); el.id = 'printArea'; document.body.appendChild(el); }
-  el.textContent = receiptText(s);
-  window.print();
+  el.innerHTML = `<img class="plogo" src="/logo.png" alt="">`; const pre = document.createElement('div'); pre.textContent = receiptText(s); el.appendChild(pre);
+  const img = el.querySelector('img'); if (img.complete) window.print(); else { img.onload = img.onerror = () => window.print(); }
 }
 
 /* ================= Data ================= */
